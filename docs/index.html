@@ -11,7 +11,7 @@
 }
 * { box-sizing:border-box; }
 body { margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }
-header { padding:18px 12px 10px; max-width:1350px; margin:auto; }
+header { padding:18px 12px 10px; max-width:1400px; margin:auto; }
 h1 { margin:0 0 6px; font-size:1.55rem; }
 .note { color:var(--sub); font-size:.86rem; line-height:1.5; }
 .stats { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin-top:12px; }
@@ -26,14 +26,14 @@ input { flex:1; min-width:220px; }
 .categories { display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; }
 .cat-btn { flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); padding:7px 11px; cursor:pointer; }
 .cat-btn.active { border-color:var(--accent); color:var(--accent); font-weight:700; }
-main { max-width:1350px; margin:auto; padding:0 8px 28px; }
+main { max-width:1400px; margin:auto; padding:0 8px 28px; }
 .table-wrap { overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }
-table { width:100%; border-collapse:collapse; min-width:1050px; }
+table { width:100%; border-collapse:collapse; min-width:1250px; }
 th,td { padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.9rem; }
 th { position:sticky; top:0; background:var(--card); z-index:1; white-space:nowrap; }
 .number { text-align:right; white-space:nowrap; }
 .strong { font-weight:800; font-size:1rem; }
-.service { min-width:220px; font-weight:650; }
+.service { min-width:240px; font-weight:650; }
 a { color:var(--accent); }
 .warning { min-width:220px; color:var(--sub); font-size:.82rem; }
 .tags { margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }
@@ -41,11 +41,19 @@ a { color:var(--accent); }
 .tag.ok { background:#dff5e5; color:#176b2c; }
 .tag.warn { background:#fff0cc; color:#775400; }
 .tag.first { background:#e9e1ff; color:#56358c; }
+.tag.periodic { background:#dcecff; color:#205b92; }
 .tag.linkless { background:#e7e7e7; color:#555; }
 .tag.category { background:#e4f0ff; color:#285b8c; }
 .tag.new { background:#ffe1e5; color:#a50018; }
 .tag.changed { background:#fff0cc; color:#775400; }
-footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }
+.rank { display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }
+.favorite-cell { width:42px; text-align:center; }
+.favorite-btn { border:0; background:transparent; color:#999; cursor:pointer; font-size:1.45rem; line-height:1; padding:0; }
+.favorite-btn.active { color:#d39a00; }
+.condition-note { margin-top:7px; font-weight:400; color:var(--sub); font-size:.78rem; }
+.condition-note summary { cursor:pointer; }
+.condition-note div { margin-top:4px; line-height:1.45; }
+footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }
 @media (max-width:700px) {
   .stats { grid-template-columns:repeat(2,1fr); }
   header { padding-top:12px; }
@@ -54,10 +62,10 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.2</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.3</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
-    最終更新: 2026-07-27T14:57:26+00:00
+    最終更新: 2026-07-27T15:17:46+00:00
   </div>
   <div class="stats">
     <div class="stat"><b>55</b><span>掲載案件</span></div>
@@ -68,13 +76,15 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
   <div class="changes">
     前回からの変化：
     <b>NEW 0</b>
-    <b>条件変更 15</b>
+    <b>条件変更 18</b>
     <b>掲載終了 0</b>
   </div>
   <div class="controls">
-    <input id="q" type="search" placeholder="サービス名・PC・コスメ・食品などで検索">
+    <input id="q" type="search" placeholder="サービス名・PC・コスメ・定期初回などで検索">
     <select id="filter">
       <option value="all">すべて</option>
+      <option value="favorite">お気に入りのみ</option>
+      <option value="top20">効率TOP20</option>
       <option value="new">NEWのみ</option>
       <option value="changed">条件変更のみ</option>
       <option value="priced">単価算出済み</option>
@@ -85,6 +95,7 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
     </select>
     <select id="sort">
       <option value="cost">1LSP必要額が安い順</option>
+      <option value="lsp1000">1000円あたりLSPが多い順</option>
       <option value="name">サービス名順</option>
       <option value="end">終了日が近い順</option>
       <option value="status">NEW・変更を上に</option>
@@ -99,35 +110,47 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
 <div class="table-wrap">
 <table id="offers">
 <thead><tr>
-<th>サービス</th><th>マイル条件</th><th>1LSP必要額</th><th>獲得マイル</th>
-<th>最低利用額</th><th>終了日</th><th>注意</th>
+<th>★</th><th>サービス</th><th>マイル条件</th><th>1LSP必要額</th><th>1000円でLSP</th>
+<th>獲得マイル</th><th>最低利用額</th><th>終了日</th><th>注意</th>
 </tr></thead>
 <tbody>
-        <tr data-search="山田養蜂場 100円ごとに 5 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="山田養蜂場 100円ごとに 5 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="2000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">山田養蜂場</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="1"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#1</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">山田養蜂場</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 5 マイル</td>
           <td class="number strong">¥2,000</td>
+          <td class="number">0.50</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="ノートンストア 200円ごとに 9 マイル pc・ソフト 初回 変更 changed"
+        <tr data-search="ノートンストア 200円ごとに 9 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="2400"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ノートンストア</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="2"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#2</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ノートンストア</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 9 マイル</td>
           <td class="number strong">¥2,400</td>
+          <td class="number">0.42</td>
           <td class="number">108</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -139,10 +162,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="ファッション"
-            data-status="same">
-          <td class="service"><span>BONAVENTURA 商品購入</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="3"
+            data-favorite-key="bonaventura商品購入">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#3</span><span>BONAVENTURA 商品購入</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
+          <td class="number">0.40</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -154,10 +183,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="美容・コスメ"
-            data-status="same">
-          <td class="service"><span>Koh Gen Do 公式オンラインショップ</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="4"
+            data-favorite-key="kohgendo公式オンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#4</span><span>Koh Gen Do 公式オンラインショップ</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
+          <td class="number">0.40</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -169,10 +204,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="花・ギフト"
-            data-status="same">
-          <td class="service"><span>イイハナ・ドットコム（e87.com）</span><div class="tags"><span class="tag category">花・ギフト</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="5"
+            data-favorite-key="イイハナドットコムe87com">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#5</span><span>イイハナ・ドットコム（e87.com）</span><div class="tags"><span class="tag category">花・ギフト</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
+          <td class="number">0.40</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -184,10 +225,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="美容・コスメ"
-            data-status="same">
-          <td class="service"><span>クラランス オンラインショップ</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="6"
+            data-favorite-key="クラランスオンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#6</span><span>クラランス オンラインショップ</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
+          <td class="number">0.40</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -199,25 +246,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="ファッション"
-            data-status="same">
-          <td class="service"><span>メガネのオンデーズ公式オンラインストア</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="7"
+            data-favorite-key="メガネのオンデズ公式オンラインストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#7</span><span>メガネのオンデーズ公式オンラインストア</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
+          <td class="number">0.40</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="トレンドマイクロ・オンラインショップ 200円ごとに 8 マイル pc・ソフト 初回 変更 changed"
+        <tr data-search="トレンドマイクロ・オンラインショップ 200円ごとに 8 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="2600"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">トレンドマイクロ・オンラインショップ</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="8"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#8</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">トレンドマイクロ・オンラインショップ</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 8 マイル</td>
           <td class="number strong">¥2,600</td>
+          <td class="number">0.38</td>
           <td class="number">104</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -229,10 +288,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="美容・コスメ"
-            data-status="same">
-          <td class="service"><span>NARS</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="9"
+            data-favorite-key="nars">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#9</span><span>NARS</span><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 7 マイル</td>
           <td class="number strong">¥3,000</td>
+          <td class="number">0.33</td>
           <td class="number">105</td>
           <td class="number"></td>
           <td></td>
@@ -244,10 +309,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="食品・健康"
-            data-status="same">
-          <td class="service"><span>ショップジャパン</span><div class="tags"><span class="tag category">食品・健康</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="10"
+            data-favorite-key="ショップジャパン">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#10</span><span>ショップジャパン</span><div class="tags"><span class="tag category">食品・健康</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>150円ごとに 5 マイル</td>
           <td class="number strong">¥3,000</td>
+          <td class="number">0.33</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -259,40 +330,58 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="ファッション"
-            data-status="same">
-          <td class="service"><span>AOKIオンラインショップ</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="11"
+            data-favorite-key="aokiオンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#11</span><span>AOKIオンラインショップ</span><div class="tags"><span class="tag category">ファッション</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 6 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="サニーヘルスオンラインショップ 100円ごとに 3 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="サニーヘルスオンラインショップ 100円ごとに 3 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="3400"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サニーヘルスオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="12"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#12</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サニーヘルスオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="サントリーウエルネスオンライン 100円ごとに 3 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="サントリーウエルネスオンライン 100円ごとに 3 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="3400"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サントリーウエルネスオンライン</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="13"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#13</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サントリーウエルネスオンライン</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -304,10 +393,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="家電・通販"
-            data-status="same">
-          <td class="service"><span>セフィーヌ 公式オンラインショップ</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="14"
+            data-favorite-key="セフィヌ公式オンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#14</span><span>セフィーヌ 公式オンラインショップ</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -319,10 +414,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="PC・ソフト"
-            data-status="same">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10147/" target="_blank" rel="noopener">ソースネクストｅSHOP</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="15"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10147">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#15</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10147/" target="_blank" rel="noopener">ソースネクストｅSHOP</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-09-30</td>
@@ -334,40 +435,58 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="食品・健康"
-            data-status="same">
-          <td class="service"><span>ベルーナグルメ</span><div class="tags"><span class="tag category">食品・健康</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="16"
+            data-favorite-key="ベルナグルメ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#16</span><span>ベルーナグルメ</span><div class="tags"><span class="tag category">食品・健康</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="ポケトーク公式オンラインストア 100円ごとに 3 マイル pc・ソフト 初回 変更 changed"
+        <tr data-search="ポケトーク公式オンラインストア 100円ごとに 3 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="3400"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ポケトーク公式オンラインストア</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="17"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#17</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ポケトーク公式オンラインストア</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="リンベル公式オンラインストア 100円ごとに 3 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="リンベル公式オンラインストア 100円ごとに 3 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="3400"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">リンベル公式オンラインストア</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="18"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#18</span><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">リンベル公式オンラインストア</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -379,10 +498,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
-          <td class="service"><span>三越伊勢丹オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="19"
+            data-favorite-key="三越伊勢丹オンラインストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#19</span><span>三越伊勢丹オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -394,10 +519,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
-          <td class="service"><span>大丸松坂屋オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="same"
+            data-rank="20"
+            data-favorite-key="大丸松坂屋オンラインストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><span class="rank">#20</span><span>大丸松坂屋オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -409,10 +540,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="花・ギフト"
-            data-status="same">
+            data-status="same"
+            data-rank="21"
+            data-favorite-key="日比谷花壇">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>日比谷花壇</span><div class="tags"><span class="tag category">花・ギフト</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -424,10 +561,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="22"
+            data-favorite-key="資生堂オンラインストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>資生堂オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 6 マイル</td>
           <td class="number strong">¥3,400</td>
+          <td class="number">0.29</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -439,25 +582,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="23"
+            data-favorite-key="dysonダイソン商品の購入および15日以内の入金確認">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>Dyson（ダイソン） 商品の購入および15日以内の入金確認</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 5 マイル</td>
           <td class="number strong">¥4,000</td>
+          <td class="number">0.25</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="ピザハット公式サイト 400円ごとに 9 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="ピザハット公式サイト 400円ごとに 9 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="4800"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ピザハット公式サイト</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="24"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ピザハット公式サイト</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>400円ごとに 9 マイル</td>
           <td class="number strong">¥4,800</td>
+          <td class="number">0.21</td>
           <td class="number">108</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -469,10 +624,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="25"
+            data-favorite-key="lancmeランコム">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>LANCÔME（ランコム）</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -484,10 +645,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="26"
+            data-favorite-key="momadesignstore">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>MoMA Design Store</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -499,25 +666,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="27"
+            data-favorite-key="vaioストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>VAIOストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 4 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="adidas online shop 100円ごとに 2 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="adidas online shop 100円ごとに 2 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="5000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">adidas Online Shop</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="28"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">adidas Online Shop</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -529,10 +708,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="29"
+            data-favorite-key="iherb">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>iHerb</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -544,10 +729,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="30"
+            data-favorite-key="ベルナmywineclub">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>〔ベルーナ〕My Wine CLUB</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -559,10 +750,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="31"
+            data-favorite-key="イヴサンロランボテ公式オンラインブティック">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>イヴ・サンローラン・ボーテ公式オンラインブティック</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -574,10 +771,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="家電・通販"
-            data-status="same">
+            data-status="same"
+            data-rank="32"
+            data-favorite-key="キルズ公式通販サイト">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>キールズ公式通販サイト</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -589,25 +792,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="家電・通販"
-            data-status="same">
+            data-status="same"
+            data-rank="33"
+            data-favorite-key="クロックスオンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>クロックス オンラインショップ</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="グンゼ 公式通販 100円ごとに 2 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="グンゼ 公式通販 100円ごとに 2 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="5000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">グンゼ 公式通販</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="34"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">グンゼ 公式通販</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -619,10 +834,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="家電・通販"
-            data-status="same">
+            data-status="same"
+            data-rank="35"
+            data-favorite-key="シュウウエムラ公式通販サイト">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>シュウ ウエムラ公式通販サイト</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -634,10 +855,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="家電・通販"
-            data-status="same">
+            data-status="same"
+            data-rank="36"
+            data-favorite-key="セシルオンラインショップ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>セシールオンラインショップ</span><div class="tags"><span class="tag category">家電・通販</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -649,25 +876,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="37"
+            data-favorite-key="セブンネットショッピング">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>セブンネットショッピング</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="ロクシタンオンラインショップ 100円ごとに 2 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="ロクシタンオンラインショップ 100円ごとに 2 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="5000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ロクシタンオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="38"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ロクシタンオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -679,10 +918,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="39"
+            data-favorite-key="小田急百貨店オンラインショッピング">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>小田急百貨店オンラインショッピング</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -694,55 +939,79 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="40"
+            data-favorite-key="生涯学習のユキャン">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>生涯学習のユーキャン</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="高島屋オンラインストア 100円ごとに 2 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="高島屋オンラインストア 100円ごとに 2 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="5000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">高島屋オンラインストア</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="41"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">高島屋オンラインストア</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
+          <td class="number">0.20</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="fmv store 200円ごとに 3 マイル pc・ソフト 初回 変更 changed"
+        <tr data-search="fmv store 200円ごとに 3 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="6800"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">FMV Store</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="42"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">FMV Store</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
+          <td class="number">0.15</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="hp directplus 200円ごとに 3 マイル pc・ソフト 初回 変更 changed"
+        <tr data-search="hp directplus 200円ごとに 3 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="6800"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">HP Directplus</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="43"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">HP Directplus</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
+          <td class="number">0.15</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -754,25 +1023,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="44"
+            data-favorite-key="yogibo公式オンラインストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>Yogibo公式オンラインストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
+          <td class="number">0.15</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="イオンショップ 200円ごとに 3 マイル 美容・コスメ 初回 変更 changed"
+        <tr data-search="イオンショップ 200円ごとに 3 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="6800"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="changed">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">イオンショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="45"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">イオンショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
+          <td class="number">0.15</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -784,40 +1065,58 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="46"
+            data-favorite-key="西武そごう公式オンラインストアeデパト">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>西武・そごう公式オンラインストア e.デパート</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
+          <td class="number">0.15</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="dhcオンラインショップ 200円ごとに 2 マイル 美容・コスメ 初回"
+        <tr data-search="dhcオンラインショップ 200円ごとに 2 マイル 美容・コスメ 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="10000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="美容・コスメ"
-            data-status="same">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">DHCオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="47"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">DHCオンラインショップ</a><div class="tags"><span class="tag category">美容・コスメ</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="dynabook direct 200円ごとに 2 マイル pc・ソフト 初回"
+        <tr data-search="dynabook direct 200円ごとに 2 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="10000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="same">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">Dynabook Direct</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="48"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">Dynabook Direct</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -829,10 +1128,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="49"
+            data-favorite-key="kojimanet">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>Kojima.net</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -844,10 +1149,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="50"
+            data-favorite-key="びゅうトラベルえきねっとjr東日本国内ツアツア代金の申し込み">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>びゅうトラベル（えきねっと JR東日本国内ツアー） ツアー代金の申し込み</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -859,25 +1170,37 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="PC・ソフト"
-            data-status="same">
+            data-status="same"
+            data-rank="51"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10251">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10251" target="_blank" rel="noopener">デル・オンライン・ストア（個人向け）</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-09-30</td>
           <td class="warning"></td>
         </tr>
-        <tr data-search="デル・オンライン・ストア（法人向け） 200円ごとに 2 マイル pc・ソフト 初回"
+        <tr data-search="デル・オンライン・ストア（法人向け） 200円ごとに 2 マイル pc・ソフト 定期初回のみ 「定期購入制度」でのご購入は、初回のみマイル積算の対象です。 変更 changed"
             data-cost="10000"
             data-detail="yes"
             data-warning="no"
             data-first="yes"
             data-category="PC・ソフト"
-            data-status="same">
-          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">デル・オンライン・ストア（法人向け）</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag first">初回条件あり</span><span class="tag ok">単価算出済み</span></div></td>
+            data-status="changed"
+            data-rank="52"
+            data-favorite-key="https://partner.jal.co.jp/jmb/partner/feature/10678">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">デル・オンライン・ストア（法人向け）</a><div class="tags"><span class="tag category">PC・ソフト</span><span class="tag changed">条件変更</span><span class="tag periodic" title="「定期購入制度」でのご購入は、初回のみマイル積算の対象です。">定期初回のみ</span><span class="tag ok">単価算出済み</span></div><details class="condition-note"><summary>初回条件の詳細</summary><div>「定期購入制度」でのご購入は、初回のみマイル積算の対象です。</div></details></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td>2026-08-02</td>
@@ -889,10 +1212,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="53"
+            data-favorite-key="ビックカメラcom">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>ビックカメラ.com</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>400円ごとに 4 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -904,10 +1233,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="54"
+            data-favorite-key="マウスコンピュタ">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>マウスコンピューター</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
+          <td class="number">0.10</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
@@ -919,10 +1254,16 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-warning="no"
             data-first="no"
             data-category="その他"
-            data-status="same">
+            data-status="same"
+            data-rank="55"
+            data-favorite-key="無印良品ネットストア">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
           <td class="service"><span>無印良品ネットストア</span><div class="tags"><span class="tag category">その他</span><span class="tag linkless">検索結果のみ</span><span class="tag ok">単価算出済み</span></div></td>
           <td>300円ごとに 3 マイル</td>
           <td class="number strong">¥10,200</td>
+          <td class="number">0.10</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
@@ -931,7 +1272,7 @@ footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); f
 </table>
 </div>
 </main>
-<footer>自動抽出結果なので、利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
+<footer>お気に入りはこの端末のブラウザ内に保存されます。利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
 <script>
 const tbody = document.querySelector('#offers tbody');
 const rows = [...tbody.querySelectorAll('tr')];
@@ -939,7 +1280,23 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+const FAVORITES_KEY = 'jal-lsp-favorites-v1';
+let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
 let activeCategory = '';
+
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+}
+
+function syncFavoriteButtons() {
+  rows.forEach(row => {
+    const key = row.dataset.favoriteKey;
+    const button = row.querySelector('.favorite-btn');
+    const active = favorites.has(key);
+    button.classList.toggle('active', active);
+    button.textContent = active ? '★' : '☆';
+  });
+}
 
 function refresh() {
   const term = q.value.trim().toLowerCase();
@@ -947,8 +1304,11 @@ function refresh() {
   rows.forEach(row => {
     const textOK = !term || row.dataset.search.includes(term);
     const categoryOK = !activeCategory || row.dataset.category === activeCategory;
+    const isFavorite = favorites.has(row.dataset.favoriteKey);
     const modeOK =
       mode === 'all' ||
+      (mode === 'favorite' && isFavorite) ||
+      (mode === 'top20' && Number(row.dataset.rank) <= 20) ||
       (mode === 'new' && row.dataset.status === 'new') ||
       (mode === 'changed' && row.dataset.status === 'changed') ||
       (mode === 'priced' && Number(row.dataset.cost) < 999999999) ||
@@ -961,17 +1321,29 @@ function refresh() {
 
   const priority = {new:0, changed:1, same:2};
   const sorted = [...rows].sort((a,b) => {
-    if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
+    if (sort.value === 'name') return a.cells[1].innerText.localeCompare(b.cells[1].innerText, 'ja');
     if (sort.value === 'end') {
-      const av = a.cells[5].innerText.trim() || '9999-12-31';
-      const bv = b.cells[5].innerText.trim() || '9999-12-31';
+      const av = a.cells[7].innerText.trim() || '9999-12-31';
+      const bv = b.cells[7].innerText.trim() || '9999-12-31';
       return av.localeCompare(bv);
     }
     if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
+    if (sort.value === 'lsp1000') return Number(a.dataset.cost) - Number(b.dataset.cost);
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   });
   sorted.forEach(row => tbody.appendChild(row));
 }
+
+rows.forEach(row => {
+  const button = row.querySelector('.favorite-btn');
+  button.addEventListener('click', () => {
+    const key = row.dataset.favoriteKey;
+    if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
+    saveFavorites();
+    syncFavoriteButtons();
+    refresh();
+  });
+});
 
 categoryButtons.forEach(button => {
   button.addEventListener('click', () => {
@@ -983,6 +1355,7 @@ categoryButtons.forEach(button => {
 q.addEventListener('input', refresh);
 filter.addEventListener('change', refresh);
 sort.addEventListener('change', refresh);
+syncFavoriteButtons();
 refresh();
 </script>
 </body>
