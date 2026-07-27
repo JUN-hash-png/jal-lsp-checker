@@ -1,1 +1,5 @@
 ﻿service,condition,unit_yen,unit_miles,spend_for_1_lsp,miles_at_1_lsp,lsp_at_minimum,minimum_spend,first_only,campaign_end,warning,detail_url,checked_at
+山田養蜂場 商品のご購入,100円ごとに 5 マイル,100,5,2000,100,,,True,2026-05-01,,https://partner.jal.co.jp/jmb/partner/feature/10678,2026-07-27T13:54:47+00:00
+ソースネクストｅSHOP 商品のご購入,100円ごとに 3 マイル,100,3,3400,102,,,False,2026-07-01,,https://partner.jal.co.jp/jmb/partner/feature/10147/,2026-07-27T13:54:47+00:00
+デル・オンライン・ストア（個人向け） 商品のご購入,200円ごとに 2 マイル,200,2,10000,100,,,False,2026-05-15,,https://partner.jal.co.jp/jmb/partner/feature/10251,2026-07-27T13:54:47+00:00
+JAL ABC コート・手荷物預かりサービス コート・手荷物預かりでマイルがたまる 決済でマイルが 2 倍,,,,,,,,False,,詳細ページ取得失敗: InvalidSchema / 金額比例ルールを自動計算できません,javascript:void(0),2026-07-27T13:54:47+00:00

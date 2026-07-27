@@ -1,1 +1,154 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>JAL LSP Checker</title><h1>JAL LSP Checker</h1><p>GitHub Actionsを初回実行すると、ここに一覧が生成されます。</p>
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JAL LSP Checker</title>
+<style>
+:root { color-scheme: light dark; --bg:#f5f5f7; --card:#fff; --text:#191919; --sub:#666; --line:#ddd; --accent:#b50018; }
+@media (prefers-color-scheme:dark) {
+  :root { --bg:#111; --card:#1b1b1d; --text:#f5f5f5; --sub:#aaa; --line:#3a3a3a; --accent:#ff5a6f; }
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }
+header { padding:20px 16px 12px; max-width:1300px; margin:auto; }
+h1 { margin:0 0 6px; font-size:1.55rem; }
+.note { color:var(--sub); font-size:.88rem; line-height:1.5; }
+.controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+input,select { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }
+input { flex:1; min-width:220px; }
+main { max-width:1300px; margin:auto; padding:0 10px 28px; }
+.table-wrap { overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }
+table { width:100%; border-collapse:collapse; min-width:1050px; }
+th,td { padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.9rem; }
+th { position:sticky; top:0; background:var(--card); z-index:1; white-space:nowrap; }
+.number { text-align:right; white-space:nowrap; }
+.strong { font-weight:800; font-size:1rem; }
+.service { min-width:190px; font-weight:650; }
+a { color:var(--accent); }
+.warning { min-width:260px; color:var(--sub); font-size:.82rem; }
+.tags { margin-top:6px; display:flex; gap:4px; }
+.tag { border-radius:999px; padding:2px 7px; font-size:.7rem; font-weight:600; }
+.tag.ok { background:#dff5e5; color:#176b2c; }
+.tag.warn { background:#fff0cc; color:#775400; }
+.tag.first { background:#e9e1ff; color:#56358c; }
+footer { max-width:1300px; margin:auto; padding:0 16px 30px; color:var(--sub); font-size:.8rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JAL LSP Checker</h1>
+  <div class="note">
+    JAL Mileage Parkの検索結果と詳細ページから自動生成。<br>
+    「1LSP必要額」は、通常のMileage Parkルール（100マイル=1LSP）で100マイル以上になる最小課金単位。
+    個別LSPルール・固定ボーナス・除外条件は「要確認」として計算を止めます。<br>
+    最終更新: 2026-07-27T13:54:47+00:00
+  </div>
+  <div class="controls">
+    <input id="q" type="search" placeholder="サービス名・条件・警告を検索">
+    <select id="filter">
+      <option value="all">すべて</option>
+      <option value="auto">自動計算のみ</option>
+      <option value="warn">要確認のみ</option>
+      <option value="first">初回系のみ</option>
+    </select>
+    <select id="sort">
+      <option value="cost">1LSP必要額が安い順</option>
+      <option value="name">サービス名順</option>
+    </select>
+  </div>
+</header>
+<main>
+<div class="table-wrap">
+<table id="offers">
+<thead><tr>
+<th>サービス</th><th>マイル条件</th><th>1LSP必要額</th><th>獲得マイル</th>
+<th>最低利用額</th><th>終了日</th><th>注意</th>
+</tr></thead>
+<tbody>
+        <tr data-search="山田養蜂場 商品のご購入 100円ごとに 5 マイル "
+            data-cost="2000">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">山田養蜂場 商品のご購入</a>
+            <div class="tags"><span class="tag first">初回系</span><span class="tag ok">自動計算</span></div>
+          </td>
+          <td>100円ごとに 5 マイル</td>
+          <td class="number strong">¥2,000</td>
+          <td class="number">100</td>
+          <td class="number"></td>
+          <td>2026-05-01</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="ソースネクストｅshop 商品のご購入 100円ごとに 3 マイル "
+            data-cost="3400">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10147/" target="_blank" rel="noopener">ソースネクストｅSHOP 商品のご購入</a>
+            <div class="tags"><span class="tag ok">自動計算</span></div>
+          </td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-07-01</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="デル・オンライン・ストア（個人向け） 商品のご購入 200円ごとに 2 マイル "
+            data-cost="10000">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10251" target="_blank" rel="noopener">デル・オンライン・ストア（個人向け） 商品のご購入</a>
+            <div class="tags"><span class="tag ok">自動計算</span></div>
+          </td>
+          <td>200円ごとに 2 マイル</td>
+          <td class="number strong">¥10,000</td>
+          <td class="number">100</td>
+          <td class="number"></td>
+          <td>2026-05-15</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="jal abc コート・手荷物預かりサービス コート・手荷物預かりでマイルがたまる 決済でマイルが 2 倍  詳細ページ取得失敗: invalidschema / 金額比例ルールを自動計算できません"
+            data-cost="999999999">
+          <td class="service"><a href="javascript:void(0)" target="_blank" rel="noopener">JAL ABC コート・手荷物預かりサービス コート・手荷物預かりでマイルがたまる 決済でマイルが 2 倍</a>
+            <div class="tags"><span class="tag warn">要確認</span></div>
+          </td>
+          <td>要確認</td>
+          <td class="number strong">要確認</td>
+          <td class="number"></td>
+          <td class="number"></td>
+          <td></td>
+          <td class="warning">詳細ページ取得失敗: InvalidSchema / 金額比例ルールを自動計算できません</td>
+        </tr></tbody>
+</table>
+</div>
+</main>
+<footer>
+自動抽出結果なので、利用前には必ずJALの詳細ページで最新条件を確認してください。
+</footer>
+<script>
+const tbody = document.querySelector('#offers tbody');
+const rows = [...tbody.querySelectorAll('tr')];
+const q = document.querySelector('#q');
+const filter = document.querySelector('#filter');
+const sort = document.querySelector('#sort');
+
+function refresh() {
+  const term = q.value.trim().toLowerCase();
+  const mode = filter.value;
+  rows.forEach(row => {
+    const textOK = !term || row.dataset.search.includes(term);
+    const hasWarn = row.querySelector('.tag.warn');
+    const hasFirst = row.querySelector('.tag.first');
+    const modeOK = mode === 'all' || (mode === 'auto' && !hasWarn) ||
+                   (mode === 'warn' && hasWarn) || (mode === 'first' && hasFirst);
+    row.hidden = !(textOK && modeOK);
+  });
+
+  const sorted = [...rows].sort((a,b) => {
+    if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
+    return Number(a.dataset.cost) - Number(b.dataset.cost);
+  });
+  sorted.forEach(row => tbody.appendChild(row));
+}
+q.addEventListener('input', refresh);
+filter.addEventListener('change', refresh);
+sort.addEventListener('change', refresh);
+refresh();
+</script>
+</body>
+</html>
