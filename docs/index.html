@@ -28,6 +28,13 @@ h1 { margin:0 0 6px; font-size:1.55rem; }
 .mini-tag.changed { background:#fff0cc; color:#775400; }
 .mini-tag.ended { background:#e7e7e7; color:#555; }
 .no-change { margin-top:8px; color:var(--sub); }
+.my-plan { margin-top:10px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.my-plan strong { margin-right:10px; }
+.my-plan span { color:var(--sub); }
+.plan-actions { display:flex; gap:7px; flex-wrap:wrap; }
+.plan-actions button, .import-label { border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; font-size:.8rem; cursor:pointer; }
+.import-label input { display:none; }
+.result-count { color:var(--sub); font-size:.8rem; margin:7px 2px 0; }
 .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 input,select { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }
 input { flex:1; min-width:220px; }
@@ -67,6 +74,8 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
 @media (max-width:700px) {
   header { padding-top:12px; }
   .stats { grid-template-columns:repeat(2,1fr); }
+  .my-plan { align-items:flex-start; }
+  .plan-actions { width:100%; }
   .controls { display:grid; grid-template-columns:1fr 1fr; }
   .controls input { grid-column:1 / -1; width:100%; }
   .table-wrap { overflow:visible; border:0; background:transparent; }
@@ -88,10 +97,10 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.5</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.6</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
-    最終更新: 2026-07-27T22:38:33+00:00
+    最終更新: 2026-07-27T22:44:51+00:00
   </div>
   <div class="stats">
     <div class="stat"><b>55</b><span>掲載案件</span></div>
@@ -107,6 +116,17 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
       <span>掲載終了 0</span>
     </div>
     <div class="no-change">前回から実質的な条件変更はありません。</div>
+  </div>
+  <div class="my-plan">
+    <div>
+      <strong>お気に入りプラン</strong>
+      <span id="favoriteSummary">0件・合計 ¥0・獲得目安 0LSP</span>
+    </div>
+    <div class="plan-actions">
+      <button type="button" id="exportFavorites">お気に入りを書き出す</button>
+      <label class="import-label">読み込む<input type="file" id="importFavorites" accept="application/json"></label>
+      <button type="button" id="clearFavorites">すべて解除</button>
+    </div>
   </div>
   <div class="controls">
     <input id="q" type="search" placeholder="サービス名・PC・コスメ・定期初回などで検索">
@@ -129,12 +149,14 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
       <option value="name">サービス名順</option>
       <option value="end">終了日が近い順</option>
       <option value="status">NEW・変更を上に</option>
+      <option value="favorite">お気に入りを上に</option>
     </select>
   </div>
   <div class="categories">
     <button type="button" class="cat-btn active" data-category="">全部</button>
     <button type="button" class="cat-btn" data-category="PC・ソフト">PC・ソフト</button><button type="button" class="cat-btn" data-category="その他">その他</button><button type="button" class="cat-btn" data-category="ファッション">ファッション</button><button type="button" class="cat-btn" data-category="家電・通販">家電・通販</button><button type="button" class="cat-btn" data-category="美容・コスメ">美容・コスメ</button><button type="button" class="cat-btn" data-category="花・ギフト">花・ギフト</button><button type="button" class="cat-btn" data-category="食品・健康">食品・健康</button>
   </div>
+  <div class="result-count" id="resultCount"></div>
 </header>
 <main>
 <div class="table-wrap">
@@ -153,7 +175,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="1"
             data-ending-soon="yes"
-            data-favorite-key="山田養蜂場::100円ごとに5マイル">
+            data-favorite-key="山田養蜂場::100円ごとに5マイル"
+            data-favorite-cost="2000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -175,7 +199,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="2"
             data-ending-soon="yes"
-            data-favorite-key="ノトンストア::200円ごとに9マイル">
+            data-favorite-key="ノトンストア::200円ごとに9マイル"
+            data-favorite-cost="2400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -197,7 +223,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="3"
             data-ending-soon="no"
-            data-favorite-key="bonaventura商品購入::100円ごとに4マイル">
+            data-favorite-key="bonaventura商品購入::100円ごとに4マイル"
+            data-favorite-cost="2500"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -219,7 +247,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="4"
             data-ending-soon="no"
-            data-favorite-key="kohgendo公式オンラインショップ::100円ごとに4マイル">
+            data-favorite-key="kohgendo公式オンラインショップ::100円ごとに4マイル"
+            data-favorite-cost="2500"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -241,7 +271,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="5"
             data-ending-soon="no"
-            data-favorite-key="イイハナドットコムe87com::100円ごとに4マイル">
+            data-favorite-key="イイハナドットコムe87com::100円ごとに4マイル"
+            data-favorite-cost="2500"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -263,7 +295,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="6"
             data-ending-soon="no"
-            data-favorite-key="クラランスオンラインショップ::100円ごとに4マイル">
+            data-favorite-key="クラランスオンラインショップ::100円ごとに4マイル"
+            data-favorite-cost="2500"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -285,7 +319,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="7"
             data-ending-soon="no"
-            data-favorite-key="メガネのオンデズ公式オンラインストア::100円ごとに4マイル">
+            data-favorite-key="メガネのオンデズ公式オンラインストア::100円ごとに4マイル"
+            data-favorite-cost="2500"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -307,7 +343,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="8"
             data-ending-soon="yes"
-            data-favorite-key="トレンドマイクロオンラインショップ::200円ごとに8マイル">
+            data-favorite-key="トレンドマイクロオンラインショップ::200円ごとに8マイル"
+            data-favorite-cost="2600"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -329,7 +367,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="9"
             data-ending-soon="no"
-            data-favorite-key="nars::200円ごとに7マイル">
+            data-favorite-key="nars::200円ごとに7マイル"
+            data-favorite-cost="3000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -351,7 +391,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="10"
             data-ending-soon="no"
-            data-favorite-key="ショップジャパン::150円ごとに5マイル">
+            data-favorite-key="ショップジャパン::150円ごとに5マイル"
+            data-favorite-cost="3000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -373,7 +415,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="11"
             data-ending-soon="no"
-            data-favorite-key="aokiオンラインショップ::200円ごとに6マイル">
+            data-favorite-key="aokiオンラインショップ::200円ごとに6マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -395,7 +439,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="12"
             data-ending-soon="yes"
-            data-favorite-key="サニヘルスオンラインショップ::100円ごとに3マイル">
+            data-favorite-key="サニヘルスオンラインショップ::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -417,7 +463,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="13"
             data-ending-soon="yes"
-            data-favorite-key="サントリウエルネスオンライン::100円ごとに3マイル">
+            data-favorite-key="サントリウエルネスオンライン::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -439,7 +487,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="14"
             data-ending-soon="no"
-            data-favorite-key="セフィヌ公式オンラインショップ::100円ごとに3マイル">
+            data-favorite-key="セフィヌ公式オンラインショップ::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -461,7 +511,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="15"
             data-ending-soon="no"
-            data-favorite-key="ソスネクストshop::100円ごとに3マイル">
+            data-favorite-key="ソスネクストshop::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -483,7 +535,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="16"
             data-ending-soon="no"
-            data-favorite-key="ベルナグルメ::100円ごとに3マイル">
+            data-favorite-key="ベルナグルメ::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -505,7 +559,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="17"
             data-ending-soon="yes"
-            data-favorite-key="ポケトク公式オンラインストア::100円ごとに3マイル">
+            data-favorite-key="ポケトク公式オンラインストア::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -527,7 +583,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="18"
             data-ending-soon="yes"
-            data-favorite-key="リンベル公式オンラインストア::100円ごとに3マイル">
+            data-favorite-key="リンベル公式オンラインストア::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -549,7 +607,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="19"
             data-ending-soon="no"
-            data-favorite-key="三越伊勢丹オンラインストア::100円ごとに3マイル">
+            data-favorite-key="三越伊勢丹オンラインストア::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -571,7 +631,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="20"
             data-ending-soon="no"
-            data-favorite-key="大丸松坂屋オンラインストア::100円ごとに3マイル">
+            data-favorite-key="大丸松坂屋オンラインストア::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -593,7 +655,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="21"
             data-ending-soon="no"
-            data-favorite-key="日比谷花壇::100円ごとに3マイル">
+            data-favorite-key="日比谷花壇::100円ごとに3マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -615,7 +679,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="22"
             data-ending-soon="no"
-            data-favorite-key="資生堂オンラインストア::200円ごとに6マイル">
+            data-favorite-key="資生堂オンラインストア::200円ごとに6マイル"
+            data-favorite-cost="3400"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -637,7 +703,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="23"
             data-ending-soon="no"
-            data-favorite-key="dysonダイソン商品の購入および15日以内の入金確認::200円ごとに5マイル">
+            data-favorite-key="dysonダイソン商品の購入および15日以内の入金確認::200円ごとに5マイル"
+            data-favorite-cost="4000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -659,7 +727,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="24"
             data-ending-soon="yes"
-            data-favorite-key="ピザハット公式サイト::400円ごとに9マイル">
+            data-favorite-key="ピザハット公式サイト::400円ごとに9マイル"
+            data-favorite-cost="4800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -681,7 +751,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="25"
             data-ending-soon="no"
-            data-favorite-key="lancmeランコム::100円ごとに2マイル">
+            data-favorite-key="lancmeランコム::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -703,7 +775,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="26"
             data-ending-soon="no"
-            data-favorite-key="momadesignstore::100円ごとに2マイル">
+            data-favorite-key="momadesignstore::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -725,7 +799,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="27"
             data-ending-soon="no"
-            data-favorite-key="vaioストア::200円ごとに4マイル">
+            data-favorite-key="vaioストア::200円ごとに4マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -747,7 +823,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="28"
             data-ending-soon="yes"
-            data-favorite-key="adidasonlineshop::100円ごとに2マイル">
+            data-favorite-key="adidasonlineshop::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -769,7 +847,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="29"
             data-ending-soon="no"
-            data-favorite-key="iherb::100円ごとに2マイル">
+            data-favorite-key="iherb::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -791,7 +871,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="30"
             data-ending-soon="no"
-            data-favorite-key="ベルナmywineclub::100円ごとに2マイル">
+            data-favorite-key="ベルナmywineclub::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -813,7 +895,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="31"
             data-ending-soon="no"
-            data-favorite-key="イヴサンロランボテ公式オンラインブティック::100円ごとに2マイル">
+            data-favorite-key="イヴサンロランボテ公式オンラインブティック::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -835,7 +919,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="32"
             data-ending-soon="no"
-            data-favorite-key="キルズ公式通販サイト::100円ごとに2マイル">
+            data-favorite-key="キルズ公式通販サイト::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -857,7 +943,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="33"
             data-ending-soon="no"
-            data-favorite-key="クロックスオンラインショップ::100円ごとに2マイル">
+            data-favorite-key="クロックスオンラインショップ::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -879,7 +967,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="34"
             data-ending-soon="yes"
-            data-favorite-key="グンゼ公式通販::100円ごとに2マイル">
+            data-favorite-key="グンゼ公式通販::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -901,7 +991,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="35"
             data-ending-soon="no"
-            data-favorite-key="シュウウエムラ公式通販サイト::100円ごとに2マイル">
+            data-favorite-key="シュウウエムラ公式通販サイト::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -923,7 +1015,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="36"
             data-ending-soon="no"
-            data-favorite-key="セシルオンラインショップ::100円ごとに2マイル">
+            data-favorite-key="セシルオンラインショップ::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -945,7 +1039,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="37"
             data-ending-soon="no"
-            data-favorite-key="セブンネットショッピング::100円ごとに2マイル">
+            data-favorite-key="セブンネットショッピング::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -967,7 +1063,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="38"
             data-ending-soon="yes"
-            data-favorite-key="ロクシタンオンラインショップ::100円ごとに2マイル">
+            data-favorite-key="ロクシタンオンラインショップ::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -989,7 +1087,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="39"
             data-ending-soon="no"
-            data-favorite-key="小田急百貨店オンラインショッピング::100円ごとに2マイル">
+            data-favorite-key="小田急百貨店オンラインショッピング::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1011,7 +1111,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="40"
             data-ending-soon="no"
-            data-favorite-key="生涯学習のユキャン::100円ごとに2マイル">
+            data-favorite-key="生涯学習のユキャン::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1033,7 +1135,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="41"
             data-ending-soon="yes"
-            data-favorite-key="高島屋オンラインストア::100円ごとに2マイル">
+            data-favorite-key="高島屋オンラインストア::100円ごとに2マイル"
+            data-favorite-cost="5000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1055,7 +1159,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="42"
             data-ending-soon="yes"
-            data-favorite-key="fmvstore::200円ごとに3マイル">
+            data-favorite-key="fmvstore::200円ごとに3マイル"
+            data-favorite-cost="6800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1077,7 +1183,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="43"
             data-ending-soon="yes"
-            data-favorite-key="hpdirectplus::200円ごとに3マイル">
+            data-favorite-key="hpdirectplus::200円ごとに3マイル"
+            data-favorite-cost="6800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1099,7 +1207,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="44"
             data-ending-soon="no"
-            data-favorite-key="yogibo公式オンラインストア::200円ごとに3マイル">
+            data-favorite-key="yogibo公式オンラインストア::200円ごとに3マイル"
+            data-favorite-cost="6800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1121,7 +1231,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="45"
             data-ending-soon="yes"
-            data-favorite-key="イオンショップ::200円ごとに3マイル">
+            data-favorite-key="イオンショップ::200円ごとに3マイル"
+            data-favorite-cost="6800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1143,7 +1255,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="46"
             data-ending-soon="no"
-            data-favorite-key="西武そごう公式オンラインストアeデパト::200円ごとに3マイル">
+            data-favorite-key="西武そごう公式オンラインストアeデパト::200円ごとに3マイル"
+            data-favorite-cost="6800"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1165,7 +1279,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="47"
             data-ending-soon="yes"
-            data-favorite-key="dhcオンラインショップ::200円ごとに2マイル">
+            data-favorite-key="dhcオンラインショップ::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1187,7 +1303,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="48"
             data-ending-soon="yes"
-            data-favorite-key="dynabookdirect::200円ごとに2マイル">
+            data-favorite-key="dynabookdirect::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1209,7 +1327,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="49"
             data-ending-soon="no"
-            data-favorite-key="kojimanet::200円ごとに2マイル">
+            data-favorite-key="kojimanet::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1231,7 +1351,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="50"
             data-ending-soon="no"
-            data-favorite-key="びゅうトラベルえきねっとjr東日本国内ツアツア代金の申し込み::200円ごとに2マイル">
+            data-favorite-key="びゅうトラベルえきねっとjr東日本国内ツアツア代金の申し込み::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1253,7 +1375,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="51"
             data-ending-soon="no"
-            data-favorite-key="デルオンラインストア個人向け::200円ごとに2マイル">
+            data-favorite-key="デルオンラインストア個人向け::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1275,7 +1399,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="52"
             data-ending-soon="yes"
-            data-favorite-key="デルオンラインストア法人向け::200円ごとに2マイル">
+            data-favorite-key="デルオンラインストア法人向け::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1297,7 +1423,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="53"
             data-ending-soon="no"
-            data-favorite-key="ビックカメラcom::400円ごとに4マイル">
+            data-favorite-key="ビックカメラcom::400円ごとに4マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1319,7 +1447,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="54"
             data-ending-soon="no"
-            data-favorite-key="マウスコンピュタ::200円ごとに2マイル">
+            data-favorite-key="マウスコンピュタ::200円ごとに2マイル"
+            data-favorite-cost="10000"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1341,7 +1471,9 @@ footer { max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); f
             data-status="same"
             data-rank="55"
             data-ending-soon="no"
-            data-favorite-key="無印良品ネットストア::300円ごとに3マイル">
+            data-favorite-key="無印良品ネットストア::300円ごとに3マイル"
+            data-favorite-cost="10200"
+            data-favorite-lsp="1">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -1365,6 +1497,11 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+const favoriteSummary = document.querySelector('#favoriteSummary');
+const resultCount = document.querySelector('#resultCount');
+const exportFavorites = document.querySelector('#exportFavorites');
+const importFavorites = document.querySelector('#importFavorites');
+const clearFavorites = document.querySelector('#clearFavorites');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
 let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
 let activeCategory = '';
@@ -1381,6 +1518,20 @@ function syncFavoriteButtons() {
     button.classList.toggle('active', active);
     button.textContent = active ? '★' : '☆';
   });
+}
+
+function updateFavoriteSummary() {
+  let count = 0;
+  let totalCost = 0;
+  let totalLsp = 0;
+  rows.forEach(row => {
+    if (!favorites.has(row.dataset.favoriteKey)) return;
+    count += 1;
+    totalCost += Number(row.dataset.favoriteCost || 0);
+    totalLsp += Number(row.dataset.favoriteLsp || 0);
+  });
+  favoriteSummary.textContent =
+    `${count}件・合計 ¥${totalCost.toLocaleString('ja-JP')}・獲得目安 ${totalLsp}LSP`;
 }
 
 function refresh() {
@@ -1414,9 +1565,17 @@ function refresh() {
       return av.localeCompare(bv);
     }
     if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
+    if (sort.value === 'favorite') {
+      const af = favorites.has(a.dataset.favoriteKey) ? 0 : 1;
+      const bf = favorites.has(b.dataset.favoriteKey) ? 0 : 1;
+      if (af !== bf) return af - bf;
+    }
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   });
   sorted.forEach(row => tbody.appendChild(row));
+  const visibleCount = rows.filter(row => !row.hidden).length;
+  resultCount.textContent = `${visibleCount}件を表示`;
+  updateFavoriteSummary();
 }
 
 rows.forEach(row => {
@@ -1428,6 +1587,47 @@ rows.forEach(row => {
     syncFavoriteButtons();
     refresh();
   });
+});
+
+exportFavorites.addEventListener('click', () => {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    favorites: [...favorites],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'jal-lsp-favorites.json';
+  anchor.click();
+  URL.revokeObjectURL(url);
+});
+
+importFavorites.addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    const imported = Array.isArray(payload) ? payload : payload.favorites;
+    if (!Array.isArray(imported)) throw new Error('invalid');
+    favorites = new Set(imported.map(String));
+    saveFavorites();
+    syncFavoriteButtons();
+    refresh();
+  } catch {
+    alert('お気に入りファイルを読み込めませんでした。');
+  } finally {
+    event.target.value = '';
+  }
+});
+
+clearFavorites.addEventListener('click', () => {
+  if (!confirm('お気に入りをすべて解除しますか？')) return;
+  favorites.clear();
+  saveFavorites();
+  syncFavoriteButtons();
+  refresh();
 });
 
 categoryButtons.forEach(button => {
