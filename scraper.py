@@ -86,43 +86,103 @@ def get(session: requests.Session, url: str) -> str:
     return response.text
 
 
-def candidate_card_anchors(soup: BeautifulSoup) -> list[Tag]:
-    """Find result-card links without depending too heavily on JAL's CSS class names."""
+def _usable_detail_anchor(block: Tag) -> Tag | None:
+    """Return a normal detail-page link from a result card."""
+    candidates = []
+    if block.name == "a" and block.get("href"):
+        candidates.append(block)
+    candidates.extend(block.find_all("a", href=True))
+
+    for anchor in candidates:
+        href = (anchor.get("href") or "").strip()
+        lowered = href.lower()
+        if not href or lowered.startswith(("javascript:", "mailto:", "tel:", "#")):
+            continue
+        absolute = urljoin("https://partner.jal.co.jp/", href)
+        if "search_result" in absolute:
+            continue
+        return anchor
+    return None
+
+
+def choose_detail_anchor(block: Tag, base_url: str) -> Tag | None:
+    """Choose the most likely partner-detail link from a result card."""
+    anchors = block.find_all("a", href=True)
+    scored: list[tuple[int, Tag]] = []
+
+    for anchor in anchors:
+        raw = anchor.get("href", "").strip()
+        if not raw or raw.startswith(("#", "javascript:", "mailto:")):
+            continue
+
+        absolute = urljoin(base_url, raw)
+        lower = absolute.lower()
+
+        # Logo/image files are not detail pages.
+        if re.search(r"\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?.*)?$", lower):
+            continue
+        if "search_result" in lower:
+            continue
+
+        score = 0
+        anchor_text = normalize(anchor.get_text(" ", strip=True))
+        if anchor_text:
+            score += 4
+        if "partner.jal.co.jp" in lower:
+            score += 2
+        if any(token in lower for token in ("shop", "detail", "partner", "emile")):
+            score += 1
+
+        scored.append((score, anchor))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+def result_blocks(soup: BeautifulSoup) -> list[Tag]:
+    """
+    Find every offer by locating the mileage condition itself, then climbing to
+    the smallest ancestor that also contains the LSP marker.
+
+    JAL's cards are inconsistent: in many cards the shop link, mileage text and
+    LSP icon are separate elements, so anchor-based extraction misses most rows.
+    """
     found: list[Tag] = []
-    seen: set[str] = set()
+    seen: set[int] = set()
 
-    for anchor in soup.find_all("a", href=True):
-        text = normalize(anchor.get_text(" ", strip=True))
-        href = urljoin("https://partner.jal.co.jp/", anchor["href"])
-        if "マイル" not in text or "Life Status" not in text:
-            continue
-        if "search_result" in href or href in seen:
-            continue
-        if len(text) > 500:
-            continue
-        seen.add(href)
-        found.append(anchor)
+    mileage_nodes = soup.find_all(string=lambda s: bool(s and MILE_RULE_RE.search(normalize(str(s)))))
 
-    # Fallback: climb from the LSP label until a nearby detail link is found.
-    if found:
-        return found
+    for node in mileage_nodes:
+        current = node.parent
+        chosen: Tag | None = None
 
-    for node in soup.find_all(string=re.compile(r"Life Status\s*ポイント積算対象")):
-        parent = node.parent
-        for _ in range(6):
-            if not isinstance(parent, Tag):
+        for _ in range(9):
+            if not isinstance(current, Tag):
                 break
-            anchor = parent if parent.name == "a" and parent.get("href") else parent.find("a", href=True)
-            block_text = normalize(parent.get_text(" ", strip=True))
-            if anchor and "マイル" in block_text:
-                href = urljoin("https://partner.jal.co.jp/", anchor["href"])
-                if href not in seen:
-                    seen.add(href)
-                    found.append(parent)
-                break
-            parent = parent.parent
+
+            block_text = normalize(current.get_text(" ", strip=True))
+            has_rule = bool(MILE_RULE_RE.search(block_text))
+            has_lsp = (
+                "Life Status ポイント積算対象" in block_text
+                or "Life Statusポイント積算対象" in block_text
+                or "Life Staus ポイント" in block_text
+            )
+
+            if has_rule and has_lsp:
+                chosen = current
+                # Stop before swallowing multiple result cards.
+                if len(MILE_RULE_RE.findall(block_text)) == 1:
+                    break
+
+            current = current.parent
+
+        if chosen is not None and id(chosen) not in seen:
+            seen.add(id(chosen))
+            found.append(chosen)
+
     return found
-
 
 def extract_service_and_condition(block: Tag) -> tuple[str, str]:
     text = normalize(block.get_text(" ", strip=True))
@@ -204,35 +264,44 @@ def parse_detail(session: requests.Session, url: str) -> tuple[str, str]:
 def scrape() -> list[Offer]:
     session = requests.Session()
     checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
-    offers_by_url: dict[str, Offer] = {}
+    offers_by_key: dict[tuple[str, str], Offer] = {}
 
     for page in range(1, int(CONFIG.get("pages", 4)) + 1):
         search_url = with_page(CONFIG["search_url"], page)
         search_html = get(session, search_url)
         soup = BeautifulSoup(search_html, "lxml")
-        cards = candidate_card_anchors(soup)
-        print(f"page {page}: {len(cards)} candidates")
+        blocks = result_blocks(soup)
+        print(f"page {page}: {len(blocks)} offers found")
 
-        for block in cards:
-            anchor = block if block.name == "a" and block.get("href") else block.find("a", href=True)
-            if not anchor:
-                continue
-            detail_url = urljoin(search_url, anchor["href"])
+        for block in blocks:
+            block_text = normalize(block.get_text(" ", strip=True))
             service, condition = extract_service_and_condition(block)
 
-            detail_text, fetch_warning = parse_detail(session, detail_url)
-            combined = normalize(f"{block.get_text(' ', strip=True)} {detail_text}")
+            anchor = choose_detail_anchor(block, search_url)
+            detail_url = urljoin(search_url, anchor["href"]) if anchor else search_url
+
+            # The search-result page alone is enough for the basic row.
+            # Detail-page enrichment is attempted only when a credible link exists.
+            detail_text = ""
+            fetch_warning = ""
+            if anchor:
+                detail_text, fetch_warning = parse_detail(session, detail_url)
+
+            combined = normalize(f"{block_text} {detail_text}")
             calc = calculate(combined, condition)
 
             warnings: list[str] = []
-            if fetch_warning:
+            if not anchor:
+                warnings.append("詳細ページURLを自動取得できません")
+            elif fetch_warning:
                 warnings.append(fetch_warning)
+
             if any(p in combined for p in EXCLUSION_PHRASES):
                 warnings.append("Mileage Parkの100マイル=1LSP対象外の可能性。個別ルールを要確認")
-                # Do not publish a misleading 1-LSP cost.
                 calc["spend_for_1_lsp"] = None
                 calc["miles_at_1_lsp"] = None
                 calc["lsp_at_minimum"] = None
+
             if calc["unit_yen"] is None:
                 warnings.append("金額比例ルールを自動計算できません")
             if "キャンペーン" in combined and not parse_campaign_end(combined):
@@ -241,8 +310,9 @@ def scrape() -> list[Offer]:
                 warnings.append("サービス名を要確認")
 
             first_only = any(p in combined for p in FIRST_ONLY_PHRASES)
+            key = (service, condition)
 
-            offers_by_url[detail_url] = Offer(
+            offers_by_key[key] = Offer(
                 service=service,
                 condition=condition,
                 unit_yen=calc["unit_yen"],
@@ -253,16 +323,18 @@ def scrape() -> list[Offer]:
                 minimum_spend=calc["minimum_spend"],
                 first_only=first_only,
                 campaign_end=parse_campaign_end(combined),
-                warning=" / ".join(warnings),
+                warning=" / ".join(dict.fromkeys(warnings)),
                 detail_url=detail_url,
                 checked_at=checked_at,
             )
-            time.sleep(float(CONFIG.get("request_interval_seconds", 1.0)))
+
+            if anchor:
+                time.sleep(float(CONFIG.get("request_interval_seconds", 1.0)))
 
         time.sleep(float(CONFIG.get("request_interval_seconds", 1.0)))
 
-    return sorted(
-        offers_by_url.values(),
+    offers = sorted(
+        offers_by_key.values(),
         key=lambda x: (
             x.spend_for_1_lsp is None,
             x.spend_for_1_lsp if x.spend_for_1_lsp is not None else 10**12,
@@ -270,6 +342,15 @@ def scrape() -> list[Offer]:
         ),
     )
 
+    # A silent partial scrape is worse than a visible failure.
+    expected_minimum = int(CONFIG.get("expected_minimum_offers", 20))
+    if len(offers) < expected_minimum:
+        raise RuntimeError(
+            f"取得件数が少なすぎます: {len(offers)}件 "
+            f"(最低想定 {expected_minimum}件)。JAL側のHTML変更を確認してください。"
+        )
+
+    return offers
 
 def write_csv(offers: Iterable[Offer]) -> None:
     path = ROOT / "data" / "offers.csv"
