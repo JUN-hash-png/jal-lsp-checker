@@ -54,6 +54,29 @@ FIRST_ONLY_PHRASES = (
 )
 
 
+
+FIRST_CONDITION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("定期初回のみ", (
+        "定期購入制度", "定期購入", "定期コース", "定期便", "定期お届け",
+    )),
+    ("初回購入のみ", (
+        "初回購入", "初回のご購入", "初めてのご購入", "初回のみ",
+    )),
+    ("初回利用のみ", (
+        "初回利用", "初めてご利用", "初めてのご利用", "初回レンタル",
+    )),
+    ("新規会員限定", (
+        "新規会員", "新規入会", "新規登録",
+    )),
+    ("新規申込限定", (
+        "新規申込", "新規お申し込み", "新規契約", "新規成約",
+    )),
+)
+
+FIRST_SENTENCE_RE = re.compile(
+    r"([^。！？]{0,80}(?:初回|初めて|新規)[^。！？]{0,120}[。！？]?)"
+)
+
 CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("PC・ソフト", (
         "dell", "デル", "hp", "fmv", "dynabook", "ノートン", "トレンドマイクロ",
@@ -103,6 +126,8 @@ class Offer:
     detail_found: bool
     category: str
     status: str
+    first_condition_type: str
+    first_condition_note: str
     checked_at: str
 
 
@@ -258,6 +283,32 @@ def extract_service_and_condition(block: Tag) -> tuple[str, str]:
 
 
 
+
+def classify_first_condition(text: str) -> tuple[str, str]:
+    """
+    Return a human-readable first-condition type and the relevant sentence.
+    Example:
+      「定期購入制度」でのご購入は、初回のみマイル積算の対象です。
+      -> ("定期初回のみ", that sentence)
+    """
+    normalized = normalize(text)
+    if not any(token in normalized for token in ("初回", "初めて", "新規")):
+        return "", ""
+
+    note_match = FIRST_SENTENCE_RE.search(normalized)
+    note = note_match.group(1).strip() if note_match else ""
+
+    # Prefer contextual classifications over the generic "初回のみ".
+    for label, keywords in FIRST_CONDITION_RULES:
+        if label == "定期初回のみ":
+            if any(k in normalized for k in keywords) and "初回" in normalized:
+                return label, note
+        elif any(k in normalized for k in keywords):
+            return label, note
+
+    return "初回条件あり", note
+
+
 def categorize(service: str, detail_text: str = "") -> str:
     haystack = normalize(f"{service} {detail_text}").lower()
     for category, keywords in CATEGORY_RULES:
@@ -304,6 +355,7 @@ def detect_status(offer: Offer, previous: dict[str, dict[str, str]]) -> str:
         "spend_for_1_lsp": "" if offer.spend_for_1_lsp is None else str(offer.spend_for_1_lsp),
         "campaign_end": offer.campaign_end,
         "first_only": str(offer.first_only),
+        "first_condition_type": offer.first_condition_type,
     }
     for field, current in comparisons.items():
         if str(old.get(field, "")) != current:
@@ -419,7 +471,8 @@ def scrape() -> list[Offer]:
             if service == "名称取得失敗":
                 warnings.append("サービス名を要確認")
 
-            first_only = any(p in combined for p in FIRST_ONLY_PHRASES)
+            first_condition_type, first_condition_note = classify_first_condition(combined)
+            first_only = bool(first_condition_type)
             key = (service, condition)
 
             offers_by_key[key] = Offer(
@@ -438,6 +491,8 @@ def scrape() -> list[Offer]:
                 detail_found=detail_found,
                 category=categorize(service, detail_text),
                 status="same",
+                first_condition_type=first_condition_type,
+                first_condition_note=first_condition_note,
                 checked_at=checked_at,
             )
 
@@ -529,20 +584,38 @@ def write_html(offers: list[Offer]) -> None:
     )
 
     rows = []
+    for rank, offer in enumerate(
+        sorted(
+            [o for o in offers if o.spend_for_1_lsp is not None],
+            key=lambda o: (o.spend_for_1_lsp or 10**12, o.service),
+        ),
+        start=1,
+    ):
+        setattr(offer, "_rank", rank)
+
     for offer in offers:
         tags = [f'<span class="tag category">{html.escape(offer.category)}</span>']
         if offer.status == "new":
             tags.append('<span class="tag new">NEW</span>')
         elif offer.status == "changed":
             tags.append('<span class="tag changed">条件変更</span>')
-        if offer.first_only:
-            tags.append('<span class="tag first">初回条件あり</span>')
+
+        if offer.first_condition_type:
+            first_class = "periodic" if offer.first_condition_type == "定期初回のみ" else "first"
+            tags.append(
+                f'<span class="tag {first_class}" title="{html.escape(offer.first_condition_note)}">'
+                f'{html.escape(offer.first_condition_type)}</span>'
+            )
+
         if not offer.detail_found:
             tags.append('<span class="tag linkless">検索結果のみ</span>')
         if offer.warning:
             tags.append('<span class="tag warn">要確認</span>')
         else:
             tags.append('<span class="tag ok">単価算出済み</span>')
+
+        rank = getattr(offer, "_rank", None)
+        rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
 
         link_label = html.escape(offer.service)
         service_html = (
@@ -551,10 +624,28 @@ def write_html(offers: list[Offer]) -> None:
             else f'<span>{link_label}</span>'
         )
 
-        # Category names are included so "PC" finds PC・ソフト offers.
+        favorite_key = html.escape(
+            offer_identity(offer.service, offer.detail_url, offer.detail_found),
+            quote=True,
+        )
+
+        lsp_per_1000 = (
+            1000 / offer.spend_for_1_lsp
+            if offer.spend_for_1_lsp not in (None, 0)
+            else None
+        )
+        lsp_per_1000_text = "" if lsp_per_1000 is None else f"{lsp_per_1000:.2f}"
+
+        condition_note_html = ""
+        if offer.first_condition_note:
+            condition_note_html = (
+                f'<details class="condition-note"><summary>初回条件の詳細</summary>'
+                f'<div>{html.escape(offer.first_condition_note)}</div></details>'
+            )
+
         search_blob = normalize(
             f"{offer.service} {offer.condition} {offer.warning} {offer.category} "
-            f"{'初回' if offer.first_only else ''} "
+            f"{offer.first_condition_type} {offer.first_condition_note} "
             f"{'新着 new' if offer.status == 'new' else ''} "
             f"{'変更 changed' if offer.status == 'changed' else ''}"
         ).lower()
@@ -566,10 +657,16 @@ def write_html(offers: list[Offer]) -> None:
             data-warning="{'yes' if offer.warning else 'no'}"
             data-first="{'yes' if offer.first_only else 'no'}"
             data-category="{html.escape(offer.category)}"
-            data-status="{offer.status}">
-          <td class="service">{service_html}<div class="tags">{''.join(tags)}</div></td>
+            data-status="{offer.status}"
+            data-rank="{rank if rank else 999999}"
+            data-favorite-key="{favorite_key}">
+          <td class="favorite-cell">
+            <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+          </td>
+          <td class="service">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</td>
           <td>{html.escape(offer.condition or '要確認')}</td>
           <td class="number strong">{fmt_yen(offer.spend_for_1_lsp)}</td>
+          <td class="number">{lsp_per_1000_text}</td>
           <td class="number">{fmt_num(offer.miles_at_1_lsp)}</td>
           <td class="number">{fmt_yen(offer.minimum_spend) if offer.minimum_spend else ''}</td>
           <td>{html.escape(offer.campaign_end)}</td>
@@ -589,7 +686,7 @@ def write_html(offers: list[Offer]) -> None:
 }}
 * {{ box-sizing:border-box; }}
 body {{ margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }}
-header {{ padding:18px 12px 10px; max-width:1350px; margin:auto; }}
+header {{ padding:18px 12px 10px; max-width:1400px; margin:auto; }}
 h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .note {{ color:var(--sub); font-size:.86rem; line-height:1.5; }}
 .stats {{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin-top:12px; }}
@@ -604,14 +701,14 @@ input {{ flex:1; min-width:220px; }}
 .categories {{ display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; }}
 .cat-btn {{ flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); padding:7px 11px; cursor:pointer; }}
 .cat-btn.active {{ border-color:var(--accent); color:var(--accent); font-weight:700; }}
-main {{ max-width:1350px; margin:auto; padding:0 8px 28px; }}
+main {{ max-width:1400px; margin:auto; padding:0 8px 28px; }}
 .table-wrap {{ overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }}
-table {{ width:100%; border-collapse:collapse; min-width:1050px; }}
+table {{ width:100%; border-collapse:collapse; min-width:1250px; }}
 th,td {{ padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.9rem; }}
 th {{ position:sticky; top:0; background:var(--card); z-index:1; white-space:nowrap; }}
 .number {{ text-align:right; white-space:nowrap; }}
 .strong {{ font-weight:800; font-size:1rem; }}
-.service {{ min-width:220px; font-weight:650; }}
+.service {{ min-width:240px; font-weight:650; }}
 a {{ color:var(--accent); }}
 .warning {{ min-width:220px; color:var(--sub); font-size:.82rem; }}
 .tags {{ margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }}
@@ -619,11 +716,19 @@ a {{ color:var(--accent); }}
 .tag.ok {{ background:#dff5e5; color:#176b2c; }}
 .tag.warn {{ background:#fff0cc; color:#775400; }}
 .tag.first {{ background:#e9e1ff; color:#56358c; }}
+.tag.periodic {{ background:#dcecff; color:#205b92; }}
 .tag.linkless {{ background:#e7e7e7; color:#555; }}
 .tag.category {{ background:#e4f0ff; color:#285b8c; }}
 .tag.new {{ background:#ffe1e5; color:#a50018; }}
 .tag.changed {{ background:#fff0cc; color:#775400; }}
-footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
+.rank {{ display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }}
+.favorite-cell {{ width:42px; text-align:center; }}
+.favorite-btn {{ border:0; background:transparent; color:#999; cursor:pointer; font-size:1.45rem; line-height:1; padding:0; }}
+.favorite-btn.active {{ color:#d39a00; }}
+.condition-note {{ margin-top:7px; font-weight:400; color:var(--sub); font-size:.78rem; }}
+.condition-note summary {{ cursor:pointer; }}
+.condition-note div {{ margin-top:4px; line-height:1.45; }}
+footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
 @media (max-width:700px) {{
   .stats {{ grid-template-columns:repeat(2,1fr); }}
   header {{ padding-top:12px; }}
@@ -632,7 +737,7 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.2</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.3</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -650,9 +755,11 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <b>掲載終了 {ended_count}</b>
   </div>
   <div class="controls">
-    <input id="q" type="search" placeholder="サービス名・PC・コスメ・食品などで検索">
+    <input id="q" type="search" placeholder="サービス名・PC・コスメ・定期初回などで検索">
     <select id="filter">
       <option value="all">すべて</option>
+      <option value="favorite">お気に入りのみ</option>
+      <option value="top20">効率TOP20</option>
       <option value="new">NEWのみ</option>
       <option value="changed">条件変更のみ</option>
       <option value="priced">単価算出済み</option>
@@ -663,6 +770,7 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     </select>
     <select id="sort">
       <option value="cost">1LSP必要額が安い順</option>
+      <option value="lsp1000">1000円あたりLSPが多い順</option>
       <option value="name">サービス名順</option>
       <option value="end">終了日が近い順</option>
       <option value="status">NEW・変更を上に</option>
@@ -677,14 +785,14 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <div class="table-wrap">
 <table id="offers">
 <thead><tr>
-<th>サービス</th><th>マイル条件</th><th>1LSP必要額</th><th>獲得マイル</th>
-<th>最低利用額</th><th>終了日</th><th>注意</th>
+<th>★</th><th>サービス</th><th>マイル条件</th><th>1LSP必要額</th><th>1000円でLSP</th>
+<th>獲得マイル</th><th>最低利用額</th><th>終了日</th><th>注意</th>
 </tr></thead>
 <tbody>{''.join(rows)}</tbody>
 </table>
 </div>
 </main>
-<footer>自動抽出結果なので、利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
+<footer>お気に入りはこの端末のブラウザ内に保存されます。利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
 <script>
 const tbody = document.querySelector('#offers tbody');
 const rows = [...tbody.querySelectorAll('tr')];
@@ -692,7 +800,23 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+const FAVORITES_KEY = 'jal-lsp-favorites-v1';
+let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
 let activeCategory = '';
+
+function saveFavorites() {{
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+}}
+
+function syncFavoriteButtons() {{
+  rows.forEach(row => {{
+    const key = row.dataset.favoriteKey;
+    const button = row.querySelector('.favorite-btn');
+    const active = favorites.has(key);
+    button.classList.toggle('active', active);
+    button.textContent = active ? '★' : '☆';
+  }});
+}}
 
 function refresh() {{
   const term = q.value.trim().toLowerCase();
@@ -700,8 +824,11 @@ function refresh() {{
   rows.forEach(row => {{
     const textOK = !term || row.dataset.search.includes(term);
     const categoryOK = !activeCategory || row.dataset.category === activeCategory;
+    const isFavorite = favorites.has(row.dataset.favoriteKey);
     const modeOK =
       mode === 'all' ||
+      (mode === 'favorite' && isFavorite) ||
+      (mode === 'top20' && Number(row.dataset.rank) <= 20) ||
       (mode === 'new' && row.dataset.status === 'new') ||
       (mode === 'changed' && row.dataset.status === 'changed') ||
       (mode === 'priced' && Number(row.dataset.cost) < 999999999) ||
@@ -714,17 +841,29 @@ function refresh() {{
 
   const priority = {{new:0, changed:1, same:2}};
   const sorted = [...rows].sort((a,b) => {{
-    if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
+    if (sort.value === 'name') return a.cells[1].innerText.localeCompare(b.cells[1].innerText, 'ja');
     if (sort.value === 'end') {{
-      const av = a.cells[5].innerText.trim() || '9999-12-31';
-      const bv = b.cells[5].innerText.trim() || '9999-12-31';
+      const av = a.cells[7].innerText.trim() || '9999-12-31';
+      const bv = b.cells[7].innerText.trim() || '9999-12-31';
       return av.localeCompare(bv);
     }}
     if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
+    if (sort.value === 'lsp1000') return Number(a.dataset.cost) - Number(b.dataset.cost);
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   }});
   sorted.forEach(row => tbody.appendChild(row));
 }}
+
+rows.forEach(row => {{
+  const button = row.querySelector('.favorite-btn');
+  button.addEventListener('click', () => {{
+    const key = row.dataset.favoriteKey;
+    if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
+    saveFavorites();
+    syncFavoriteButtons();
+    refresh();
+  }});
+}});
 
 categoryButtons.forEach(button => {{
   button.addEventListener('click', () => {{
@@ -736,6 +875,7 @@ categoryButtons.forEach(button => {{
 q.addEventListener('input', refresh);
 filter.addEventListener('change', refresh);
 sort.addEventListener('change', refresh);
+syncFavoriteButtons();
 refresh();
 </script>
 </body>
