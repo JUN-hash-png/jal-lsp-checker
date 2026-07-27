@@ -35,6 +35,15 @@ MIN_SPEND_RE = re.compile(
 DATE_RE = re.compile(
     r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日"
 )
+DATE_RANGE_RE = re.compile(
+    r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日"
+    r"\s*[～〜~－—-]\s*"
+    r"(?:(20\d{2})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日"
+)
+FEATURE_URL_RE = re.compile(
+    r"(?:https?://partner\.jal\.co\.jp)?"
+    r"(?P<path>/jmb/partner/feature/\d+/?)(?:[\"'?#\s]|$)"
+)
 EXCLUSION_PHRASES = (
     "JALマイレージパーク経由によるマイル・Life Statusポイントは積算対象外",
     "JALマイレージパーク経由によるマイル・Life Status ポイントは積算対象外",
@@ -59,6 +68,7 @@ class Offer:
     campaign_end: str
     warning: str
     detail_url: str
+    detail_found: bool
     checked_at: str
 
 
@@ -86,60 +96,43 @@ def get(session: requests.Session, url: str) -> str:
     return response.text
 
 
-def _usable_detail_anchor(block: Tag) -> Tag | None:
-    """Return a normal detail-page link from a result card."""
-    candidates = []
-    if block.name == "a" and block.get("href"):
-        candidates.append(block)
-    candidates.extend(block.find_all("a", href=True))
+def find_detail_url(block: Tag, base_url: str) -> str | None:
+    """
+    Find a JAL partner detail URL from href/data-* attributes, onclick strings,
+    or nearby wrapper elements. Normal cards do not always expose the shop name
+    as a plain anchor.
+    """
+    candidates: list[Tag] = [block]
+    candidates.extend(block.find_all(True))
 
-    for anchor in candidates:
-        href = (anchor.get("href") or "").strip()
-        lowered = href.lower()
-        if not href or lowered.startswith(("javascript:", "mailto:", "tel:", "#")):
-            continue
-        absolute = urljoin("https://partner.jal.co.jp/", href)
-        if "search_result" in absolute:
-            continue
-        return anchor
+    parent = block.parent
+    for _ in range(3):
+        if not isinstance(parent, Tag):
+            break
+        candidates.append(parent)
+        parent = parent.parent
+
+    for tag in candidates:
+        for attr_value in tag.attrs.values():
+            values = attr_value if isinstance(attr_value, list) else [attr_value]
+            for value in values:
+                raw = str(value)
+                match = FEATURE_URL_RE.search(raw)
+                if match:
+                    return urljoin(base_url, match.group("path"))
+
+                if tag.name == "a" and tag.get("href"):
+                    href = str(tag.get("href")).strip()
+                    absolute = urljoin(base_url, href)
+                    if "/jmb/partner/feature/" in absolute:
+                        return absolute
+
+        # Catch URLs embedded in inline scripts or unusual attributes.
+        match = FEATURE_URL_RE.search(str(tag))
+        if match:
+            return urljoin(base_url, match.group("path"))
+
     return None
-
-
-def choose_detail_anchor(block: Tag, base_url: str) -> Tag | None:
-    """Choose the most likely partner-detail link from a result card."""
-    anchors = block.find_all("a", href=True)
-    scored: list[tuple[int, Tag]] = []
-
-    for anchor in anchors:
-        raw = anchor.get("href", "").strip()
-        if not raw or raw.startswith(("#", "javascript:", "mailto:")):
-            continue
-
-        absolute = urljoin(base_url, raw)
-        lower = absolute.lower()
-
-        # Logo/image files are not detail pages.
-        if re.search(r"\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?.*)?$", lower):
-            continue
-        if "search_result" in lower:
-            continue
-
-        score = 0
-        anchor_text = normalize(anchor.get_text(" ", strip=True))
-        if anchor_text:
-            score += 4
-        if "partner.jal.co.jp" in lower:
-            score += 2
-        if any(token in lower for token in ("shop", "detail", "partner", "emile")):
-            score += 1
-
-        scored.append((score, anchor))
-
-    if not scored:
-        return None
-    scored.sort(key=lambda item: item[0], reverse=True)
-    return scored[0][1]
-
 
 def result_blocks(soup: BeautifulSoup) -> list[Tag]:
     """
@@ -225,18 +218,27 @@ def extract_service_and_condition(block: Tag) -> tuple[str, str]:
 
     # Image alt text or campaign badges can appear before the actual name.
     service = re.sub(r"^(?:Image:?|[0-9]+倍)\s*", "", service, flags=re.I)
+    service = re.sub(r"\s*(?:商品のご購入|サービスのご利用|ご利用)\s*$", "", service)
+    service = re.sub(r"\s*商品(?:の)?ご購入\s*$", "", service)
     return service or "名称取得失敗", condition
 
 
 def parse_campaign_end(text: str) -> str:
+    # Prefer the end of an explicit date range, e.g. 2026年5月1日～8月2日.
+    ranges = list(DATE_RANGE_RE.finditer(text))
+    if ranges:
+        match = ranges[-1]
+        start_year, _, _, end_year, end_month, end_day = match.groups()
+        year = int(end_year or start_year)
+        return f"{year:04d}-{int(end_month):02d}-{int(end_day):02d}"
+
     candidates: list[tuple[int, str]] = []
     for match in DATE_RE.finditer(text):
         y, m, d = map(int, match.groups())
-        context = text[max(0, match.start() - 30):match.end() + 20]
-        priority = 0 if any(k in context for k in ("終了", "まで", "期間")) else 1
+        context = text[max(0, match.start() - 40):match.end() + 30]
+        priority = 0 if any(k in context for k in ("終了", "まで", "期限")) else 1
         candidates.append((priority, f"{y:04d}-{m:02d}-{d:02d}"))
     return sorted(candidates)[0][1] if candidates else ""
-
 
 def calculate(text: str, condition: str) -> dict:
     match = MILE_RULE_RE.search(condition or text)
@@ -298,30 +300,21 @@ def scrape() -> list[Offer]:
             block_text = normalize(block.get_text(" ", strip=True))
             service, condition = extract_service_and_condition(block)
 
-            anchor = choose_detail_anchor(block, search_url)
-            detail_url = search_url
-            if anchor:
-                raw_href = anchor.get("href", "").strip()
-                candidate_url = urljoin(search_url, raw_href)
-                if urlsplit(candidate_url).scheme in ("http", "https"):
-                    detail_url = candidate_url
-                else:
-                    anchor = None
+            detail_url = find_detail_url(block, search_url)
+            detail_found = detail_url is not None
+            if not detail_url:
+                detail_url = search_url
 
-            # The search-result page alone is enough for the basic row.
-            # Detail-page enrichment is attempted only when a credible link exists.
             detail_text = ""
             fetch_warning = ""
-            if anchor:
+            if detail_found:
                 detail_text, fetch_warning = parse_detail(session, detail_url)
 
             combined = normalize(f"{block_text} {detail_text}")
             calc = calculate(combined, condition)
 
             warnings: list[str] = []
-            if not anchor:
-                warnings.append("詳細ページURLを自動取得できません")
-            elif fetch_warning:
+            if fetch_warning:
                 warnings.append(fetch_warning)
 
             if any(p in combined for p in EXCLUSION_PHRASES):
@@ -353,10 +346,11 @@ def scrape() -> list[Offer]:
                 campaign_end=parse_campaign_end(combined),
                 warning=" / ".join(dict.fromkeys(warnings)),
                 detail_url=detail_url,
+                detail_found=detail_found,
                 checked_at=checked_at,
             )
 
-            if anchor:
+            if detail_found:
                 time.sleep(float(CONFIG.get("request_interval_seconds", 1.0)))
 
         time.sleep(float(CONFIG.get("request_interval_seconds", 1.0)))
@@ -400,22 +394,41 @@ def fmt_num(value) -> str:
 
 def write_html(offers: list[Offer]) -> None:
     updated = offers[0].checked_at if offers else datetime.now().astimezone().isoformat(timespec="seconds")
+    total = len(offers)
+    auto_count = sum(1 for o in offers if not o.warning)
+    detail_count = sum(1 for o in offers if o.detail_found)
+    first_count = sum(1 for o in offers if o.first_only)
+
     rows = []
     for offer in offers:
         tags = []
         if offer.first_only:
-            tags.append('<span class="tag first">初回系</span>')
+            tags.append('<span class="tag first">初回条件あり</span>')
+        if not offer.detail_found:
+            tags.append('<span class="tag linkless">検索結果のみ</span>')
         if offer.warning:
             tags.append('<span class="tag warn">要確認</span>')
         else:
             tags.append('<span class="tag ok">自動計算</span>')
 
+        link_label = html.escape(offer.service)
+        service_html = (
+            f'<a href="{html.escape(offer.detail_url)}" target="_blank" rel="noopener">{link_label}</a>'
+            if offer.detail_found
+            else f'<span>{link_label}</span>'
+        )
+        search_blob = (
+            offer.service + " " + offer.condition + " " + offer.warning + " "
+            + ("初回" if offer.first_only else "") + ("詳細あり" if offer.detail_found else "詳細なし")
+        ).lower()
+
         rows.append(f"""
-        <tr data-search="{html.escape((offer.service + ' ' + offer.condition + ' ' + offer.warning).lower())}"
-            data-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 999999999}">
-          <td class="service"><a href="{html.escape(offer.detail_url)}" target="_blank" rel="noopener">{html.escape(offer.service)}</a>
-            <div class="tags">{''.join(tags)}</div>
-          </td>
+        <tr data-search="{html.escape(search_blob)}"
+            data-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 999999999}"
+            data-detail="{'yes' if offer.detail_found else 'no'}"
+            data-warning="{'yes' if offer.warning else 'no'}"
+            data-first="{'yes' if offer.first_only else 'no'}">
+          <td class="service">{service_html}<div class="tags">{''.join(tags)}</div></td>
           <td>{html.escape(offer.condition or '要確認')}</td>
           <td class="number strong">{fmt_yen(offer.spend_for_1_lsp)}</td>
           <td class="number">{fmt_num(offer.miles_at_1_lsp)}</td>
@@ -437,50 +450,66 @@ def write_html(offers: list[Offer]) -> None:
 }}
 * {{ box-sizing:border-box; }}
 body {{ margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }}
-header {{ padding:20px 16px 12px; max-width:1300px; margin:auto; }}
+header {{ padding:18px 12px 10px; max-width:1350px; margin:auto; }}
 h1 {{ margin:0 0 6px; font-size:1.55rem; }}
-.note {{ color:var(--sub); font-size:.88rem; line-height:1.5; }}
-.controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }}
+.note {{ color:var(--sub); font-size:.86rem; line-height:1.5; }}
+.stats {{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin-top:12px; }}
+.stat {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }}
+.stat b {{ display:block; font-size:1.2rem; }}
+.stat span {{ color:var(--sub); font-size:.75rem; }}
+.controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
-main {{ max-width:1300px; margin:auto; padding:0 10px 28px; }}
+main {{ max-width:1350px; margin:auto; padding:0 8px 28px; }}
 .table-wrap {{ overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }}
 table {{ width:100%; border-collapse:collapse; min-width:1050px; }}
 th,td {{ padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.9rem; }}
 th {{ position:sticky; top:0; background:var(--card); z-index:1; white-space:nowrap; }}
 .number {{ text-align:right; white-space:nowrap; }}
 .strong {{ font-weight:800; font-size:1rem; }}
-.service {{ min-width:190px; font-weight:650; }}
+.service {{ min-width:220px; font-weight:650; }}
 a {{ color:var(--accent); }}
-.warning {{ min-width:260px; color:var(--sub); font-size:.82rem; }}
-.tags {{ margin-top:6px; display:flex; gap:4px; }}
+.warning {{ min-width:220px; color:var(--sub); font-size:.82rem; }}
+.tags {{ margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }}
 .tag {{ border-radius:999px; padding:2px 7px; font-size:.7rem; font-weight:600; }}
 .tag.ok {{ background:#dff5e5; color:#176b2c; }}
 .tag.warn {{ background:#fff0cc; color:#775400; }}
 .tag.first {{ background:#e9e1ff; color:#56358c; }}
-footer {{ max-width:1300px; margin:auto; padding:0 16px 30px; color:var(--sub); font-size:.8rem; }}
+.tag.linkless {{ background:#e7e7e7; color:#555; }}
+footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
+@media (max-width:700px) {{
+  .stats {{ grid-template-columns:repeat(2,1fr); }}
+  header {{ padding-top:12px; }}
+}}
 </style>
 </head>
 <body>
 <header>
   <h1>JAL LSP Checker</h1>
   <div class="note">
-    JAL Mileage Parkの検索結果と詳細ページから自動生成。<br>
-    「1LSP必要額」は、通常のMileage Parkルール（100マイル=1LSP）で100マイル以上になる最小課金単位。
-    個別LSPルール・固定ボーナス・除外条件は「要確認」として計算を止めます。<br>
+    JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
   </div>
+  <div class="stats">
+    <div class="stat"><b>{total}</b><span>掲載案件</span></div>
+    <div class="stat"><b>{auto_count}</b><span>自動計算できた案件</span></div>
+    <div class="stat"><b>{detail_count}</b><span>詳細ページ取得済み</span></div>
+    <div class="stat"><b>{first_count}</b><span>初回条件あり</span></div>
+  </div>
   <div class="controls">
-    <input id="q" type="search" placeholder="サービス名・条件・警告を検索">
+    <input id="q" type="search" placeholder="サービス名・条件を検索">
     <select id="filter">
       <option value="all">すべて</option>
       <option value="auto">自動計算のみ</option>
       <option value="warn">要確認のみ</option>
-      <option value="first">初回系のみ</option>
+      <option value="detail">詳細ページ取得済み</option>
+      <option value="linkless">検索結果のみ</option>
+      <option value="first">初回条件あり</option>
     </select>
     <select id="sort">
       <option value="cost">1LSP必要額が安い順</option>
       <option value="name">サービス名順</option>
+      <option value="end">終了日が近い順</option>
     </select>
   </div>
 </header>
@@ -495,9 +524,7 @@ footer {{ max-width:1300px; margin:auto; padding:0 16px 30px; color:var(--sub); 
 </table>
 </div>
 </main>
-<footer>
-自動抽出結果なので、利用前には必ずJALの詳細ページで最新条件を確認してください。
-</footer>
+<footer>自動抽出結果なので、利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
 <script>
 const tbody = document.querySelector('#offers tbody');
 const rows = [...tbody.querySelectorAll('tr')];
@@ -510,15 +537,23 @@ function refresh() {{
   const mode = filter.value;
   rows.forEach(row => {{
     const textOK = !term || row.dataset.search.includes(term);
-    const hasWarn = row.querySelector('.tag.warn');
-    const hasFirst = row.querySelector('.tag.first');
-    const modeOK = mode === 'all' || (mode === 'auto' && !hasWarn) ||
-                   (mode === 'warn' && hasWarn) || (mode === 'first' && hasFirst);
+    const modeOK =
+      mode === 'all' ||
+      (mode === 'auto' && row.dataset.warning === 'no') ||
+      (mode === 'warn' && row.dataset.warning === 'yes') ||
+      (mode === 'detail' && row.dataset.detail === 'yes') ||
+      (mode === 'linkless' && row.dataset.detail === 'no') ||
+      (mode === 'first' && row.dataset.first === 'yes');
     row.hidden = !(textOK && modeOK);
   }});
 
   const sorted = [...rows].sort((a,b) => {{
     if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
+    if (sort.value === 'end') {{
+      const av = a.cells[5].innerText.trim() || '9999-12-31';
+      const bv = b.cells[5].innerText.trim() || '9999-12-31';
+      return av.localeCompare(bv);
+    }}
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   }});
   sorted.forEach(row => tbody.appendChild(row));
@@ -531,7 +566,6 @@ refresh();
 </body>
 </html>"""
     (ROOT / "docs" / "index.html").write_text(page, encoding="utf-8")
-
 
 def main() -> None:
     offers = scrape()
