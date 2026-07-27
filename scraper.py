@@ -319,12 +319,30 @@ def categorize(service: str, detail_text: str = "") -> str:
     return "その他"
 
 
-def offer_identity(service: str, detail_url: str, detail_found: bool) -> str:
-    if detail_found and detail_url:
-        return detail_url.rstrip("/")
-    normalized_service = re.sub(r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+", "", service.lower())
-    return normalized_service
+def offer_identity(
+    service: str,
+    detail_url: str,
+    detail_found: bool,
+    condition: str = "",
+) -> str:
+    """
+    Stable per-offer identity.
 
+    Detail URLs are not reliable enough to use as the sole key: JAL sometimes
+    exposes the same wrapper URL to multiple cards. Use normalized service name
+    and mileage condition so favorites and change tracking stay independent.
+    """
+    normalized_service = re.sub(
+        r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+",
+        "",
+        service.lower(),
+    )
+    normalized_condition = re.sub(
+        r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+",
+        "",
+        condition.lower(),
+    )
+    return f"{normalized_service}::{normalized_condition}"
 
 def load_previous_offers() -> dict[str, dict[str, str]]:
     path = ROOT / "data" / "offers.csv"
@@ -338,7 +356,7 @@ def load_previous_offers() -> dict[str, dict[str, str]]:
                 service = row.get("service", "")
                 detail_url = row.get("detail_url", "")
                 detail_found = str(row.get("detail_found", "")).lower() in ("true", "1", "yes")
-                key = offer_identity(service, detail_url, detail_found)
+                key = offer_identity(service, detail_url, detail_found, row.get("condition", ""))
                 if key:
                     previous[key] = row
     except Exception as exc:
@@ -350,8 +368,25 @@ def detect_status(
     offer: Offer,
     previous: dict[str, dict[str, str]],
 ) -> tuple[str, int | None, str]:
-    key = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+    key = offer_identity(offer.service, offer.detail_url, offer.detail_found, offer.condition)
     old = previous.get(key)
+    if old is None:
+        normalized_service = re.sub(
+            r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+",
+            "",
+            offer.service.lower(),
+        )
+        matches = [
+            row for row in previous.values()
+            if re.sub(
+                r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+",
+                "",
+                str(row.get("service", "")).lower(),
+            ) == normalized_service
+        ]
+        if len(matches) == 1:
+            old = matches[0]
+
     if old is None:
         return "new", None, "新規掲載"
 
@@ -406,7 +441,7 @@ def write_history(offers: list[Offer]) -> None:
             existing_keys = set()
 
     for offer in offers:
-        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found, offer.condition)
         key = (today, identity)
         if key in existing_keys:
             continue
@@ -584,7 +619,7 @@ def scrape() -> list[Offer]:
         offer.status, offer.previous_cost, offer.change_note = detect_status(offer, previous)
 
     current_keys = {
-        offer_identity(o.service, o.detail_url, o.detail_found)
+        offer_identity(o.service, o.detail_url, o.detail_found, o.condition)
         for o in offers
     }
     ended_rows = [
@@ -627,6 +662,17 @@ def fmt_yen(value: int | None) -> str:
 
 def fmt_num(value) -> str:
     return "" if value is None else str(value)
+
+
+
+def days_remaining(date_text: str) -> int | None:
+    if not date_text:
+        return None
+    try:
+        end_date = datetime.strptime(date_text, "%Y-%m-%d").date()
+        return (end_date - datetime.now().astimezone().date()).days
+    except ValueError:
+        return None
 
 
 def write_html(offers: list[Offer]) -> None:
@@ -681,7 +727,7 @@ def write_html(offers: list[Offer]) -> None:
         key=lambda o: (o.spend_for_1_lsp or 10**12, o.service),
     )
     rank_map = {
-        offer_identity(o.service, o.detail_url, o.detail_found): rank
+        offer_identity(o.service, o.detail_url, o.detail_found, o.condition): rank
         for rank, o in enumerate(ranked, start=1)
     }
 
@@ -703,6 +749,13 @@ def write_html(offers: list[Offer]) -> None:
                 f'{html.escape(offer.first_condition_type)}</span>'
             )
 
+        remaining = days_remaining(offer.campaign_end)
+        if remaining is not None:
+            if remaining < 0:
+                tags.append('<span class="tag expired">終了日経過</span>')
+            elif remaining <= 7:
+                tags.append(f'<span class="tag soon">あと{remaining}日</span>')
+
         if not offer.detail_found:
             tags.append('<span class="tag linkless">検索結果のみ</span>')
         if offer.warning:
@@ -710,7 +763,7 @@ def write_html(offers: list[Offer]) -> None:
         else:
             tags.append('<span class="tag ok">単価算出済み</span>')
 
-        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found, offer.condition)
         rank = rank_map.get(identity)
         rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
 
@@ -752,6 +805,7 @@ def write_html(offers: list[Offer]) -> None:
             data-category="{html.escape(offer.category)}"
             data-status="{offer.status}"
             data-rank="{rank if rank else 999999}"
+            data-ending-soon="{'yes' if remaining is not None and 0 <= remaining <= 7 else 'no'}"
             data-favorite-key="{favorite_key}">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
@@ -856,7 +910,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.4</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.5</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -882,6 +936,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <option value="all">すべて</option>
       <option value="favorite">お気に入りのみ</option>
       <option value="top20">効率TOP20</option>
+      <option value="soon">終了7日以内</option>
       <option value="new">NEWのみ</option>
       <option value="changed">条件変更のみ</option>
       <option value="priced">単価算出済み</option>
@@ -922,7 +977,7 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
-const FAVORITES_KEY = 'jal-lsp-favorites-v1';
+const FAVORITES_KEY = 'jal-lsp-favorites-v2';
 let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
 let activeCategory = '';
 
@@ -951,6 +1006,7 @@ function refresh() {{
       mode === 'all' ||
       (mode === 'favorite' && isFavorite) ||
       (mode === 'top20' && Number(row.dataset.rank) <= 20) ||
+      (mode === 'soon' && row.dataset.endingSoon === 'yes') ||
       (mode === 'new' && row.dataset.status === 'new') ||
       (mode === 'changed' && row.dataset.status === 'changed') ||
       (mode === 'priced' && Number(row.dataset.cost) < 999999999) ||
