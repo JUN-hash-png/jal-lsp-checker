@@ -28,6 +28,14 @@ jobs:
       - name: Scrape and build
         run: python scraper.py
 
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jal-search-html
+          path: data/debug/
+          retention-days: 7
+
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
