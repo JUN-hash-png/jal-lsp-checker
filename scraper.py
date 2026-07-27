@@ -143,44 +143,62 @@ def choose_detail_anchor(block: Tag, base_url: str) -> Tag | None:
 
 def result_blocks(soup: BeautifulSoup) -> list[Tag]:
     """
-    Find every offer by locating the mileage condition itself, then climbing to
-    the smallest ancestor that also contains the LSP marker.
+    Collect result cards from their LSP marker.
 
-    JAL's cards are inconsistent: in many cards the shop link, mileage text and
-    LSP icon are separate elements, so anchor-based extraction misses most rows.
+    JAL splits the mileage sentence across nested HTML elements, so matching an
+    individual text node misses every normal card. Each normal offer is inside
+    an <li> and contains an LSP marker, which is a much more stable anchor.
     """
     found: list[Tag] = []
     seen: set[int] = set()
 
-    mileage_nodes = soup.find_all(string=lambda s: bool(s and MILE_RULE_RE.search(normalize(str(s)))))
+    marker_nodes = soup.find_all(
+        string=lambda s: bool(
+            s
+            and "Life Status" in normalize(str(s))
+            and "ポイント" in normalize(str(s))
+        )
+    )
 
-    for node in mileage_nodes:
-        current = node.parent
+    for node in marker_nodes:
         chosen: Tag | None = None
+        current = node.parent
 
-        for _ in range(9):
-            if not isinstance(current, Tag):
-                break
+        if isinstance(current, Tag):
+            li = current.find_parent("li")
+            if isinstance(li, Tag):
+                li_text = normalize(li.get_text(" ", strip=True))
+                if "積算対象" in li_text and MILE_RULE_RE.search(li_text):
+                    chosen = li
 
-            block_text = normalize(current.get_text(" ", strip=True))
-            has_rule = bool(MILE_RULE_RE.search(block_text))
-            has_lsp = (
-                "Life Status ポイント積算対象" in block_text
-                or "Life Statusポイント積算対象" in block_text
-                or "Life Staus ポイント" in block_text
-            )
-
-            if has_rule and has_lsp:
-                chosen = current
-                # Stop before swallowing multiple result cards.
-                if len(MILE_RULE_RE.findall(block_text)) == 1:
+        if chosen is None:
+            current = node.parent
+            for _ in range(10):
+                if not isinstance(current, Tag):
                     break
-
-            current = current.parent
+                block_text = normalize(current.get_text(" ", strip=True))
+                marker_count = block_text.count("Life Status")
+                rule_count = len(MILE_RULE_RE.findall(block_text))
+                if "積算対象" in block_text and rule_count == 1:
+                    chosen = current
+                    if marker_count == 1:
+                        break
+                current = current.parent
 
         if chosen is not None and id(chosen) not in seen:
             seen.add(id(chosen))
             found.append(chosen)
+
+    for anchor in soup.find_all("a", href=True):
+        anchor_text = normalize(anchor.get_text(" ", strip=True))
+        if (
+            "Life Status" in anchor_text
+            and "積算対象" in anchor_text
+            and MILE_RULE_RE.search(anchor_text)
+            and id(anchor) not in seen
+        ):
+            seen.add(id(anchor))
+            found.append(anchor)
 
     return found
 
@@ -269,6 +287,9 @@ def scrape() -> list[Offer]:
     for page in range(1, int(CONFIG.get("pages", 4)) + 1):
         search_url = with_page(CONFIG["search_url"], page)
         search_html = get(session, search_url)
+        debug_dir = ROOT / "data" / "debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        (debug_dir / f"search-page-{page}.html").write_text(search_html, encoding="utf-8")
         soup = BeautifulSoup(search_html, "lxml")
         blocks = result_blocks(soup)
         print(f"page {page}: {len(blocks)} offers found")
@@ -278,7 +299,14 @@ def scrape() -> list[Offer]:
             service, condition = extract_service_and_condition(block)
 
             anchor = choose_detail_anchor(block, search_url)
-            detail_url = urljoin(search_url, anchor["href"]) if anchor else search_url
+            detail_url = search_url
+            if anchor:
+                raw_href = anchor.get("href", "").strip()
+                candidate_url = urljoin(search_url, raw_href)
+                if urlsplit(candidate_url).scheme in ("http", "https"):
+                    detail_url = candidate_url
+                else:
+                    anchor = None
 
             # The search-result page alone is enough for the basic row.
             # Detail-page enrichment is attempted only when a credible link exists.
