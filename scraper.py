@@ -128,6 +128,8 @@ class Offer:
     status: str
     first_condition_type: str
     first_condition_note: str
+    previous_cost: int | None
+    change_note: str
     checked_at: str
 
 
@@ -344,24 +346,90 @@ def load_previous_offers() -> dict[str, dict[str, str]]:
     return previous
 
 
-def detect_status(offer: Offer, previous: dict[str, dict[str, str]]) -> str:
+def detect_status(
+    offer: Offer,
+    previous: dict[str, dict[str, str]],
+) -> tuple[str, int | None, str]:
     key = offer_identity(offer.service, offer.detail_url, offer.detail_found)
     old = previous.get(key)
     if old is None:
-        return "new"
+        return "new", None, "新規掲載"
 
-    comparisons = {
-        "condition": offer.condition,
-        "spend_for_1_lsp": "" if offer.spend_for_1_lsp is None else str(offer.spend_for_1_lsp),
-        "campaign_end": offer.campaign_end,
-        "first_only": str(offer.first_only),
-        "first_condition_type": offer.first_condition_type,
-    }
-    for field, current in comparisons.items():
-        if str(old.get(field, "")) != current:
-            return "changed"
-    return "same"
+    old_cost_raw = str(old.get("spend_for_1_lsp", "")).strip()
+    try:
+        old_cost = int(old_cost_raw) if old_cost_raw else None
+    except ValueError:
+        old_cost = None
 
+    changes: list[str] = []
+
+    if str(old.get("condition", "")) != offer.condition:
+        changes.append("マイル条件")
+
+    current_cost = "" if offer.spend_for_1_lsp is None else str(offer.spend_for_1_lsp)
+    if old_cost_raw != current_cost:
+        if old_cost is not None and offer.spend_for_1_lsp is not None:
+            diff = offer.spend_for_1_lsp - old_cost
+            if diff < 0:
+                changes.append(f"単価改善 ¥{abs(diff):,}")
+            elif diff > 0:
+                changes.append(f"単価悪化 ¥{diff:,}")
+        else:
+            changes.append("LSP単価")
+
+    if str(old.get("campaign_end", "")) != offer.campaign_end:
+        changes.append("終了日")
+
+    if changes:
+        return "changed", old_cost, " / ".join(changes)
+    return "same", old_cost, ""
+
+
+def write_history(offers: list[Offer]) -> None:
+    """Append one daily snapshot per offer to data/history.csv."""
+    path = ROOT / "data" / "history.csv"
+    today = datetime.now().astimezone().date().isoformat()
+    existing_rows: list[dict[str, str]] = []
+    existing_keys: set[tuple[str, str]] = set()
+
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as f:
+                existing_rows = list(csv.DictReader(f))
+                existing_keys = {
+                    (row.get("date", ""), row.get("identity", ""))
+                    for row in existing_rows
+                }
+        except Exception as exc:
+            print(f"History CSV could not be read: {type(exc).__name__}")
+            existing_rows = []
+            existing_keys = set()
+
+    for offer in offers:
+        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+        key = (today, identity)
+        if key in existing_keys:
+            continue
+        existing_rows.append({
+            "date": today,
+            "identity": identity,
+            "service": offer.service,
+            "category": offer.category,
+            "condition": offer.condition,
+            "spend_for_1_lsp": "" if offer.spend_for_1_lsp is None else str(offer.spend_for_1_lsp),
+            "campaign_end": offer.campaign_end,
+            "detail_url": offer.detail_url if offer.detail_found else "",
+        })
+        existing_keys.add(key)
+
+    fieldnames = [
+        "date", "identity", "service", "category", "condition",
+        "spend_for_1_lsp", "campaign_end", "detail_url",
+    ]
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(existing_rows)
 
 def parse_campaign_end(text: str) -> str:
     # Prefer the end of an explicit date range, e.g. 2026年5月1日～8月2日.
@@ -493,6 +561,8 @@ def scrape() -> list[Offer]:
                 status="same",
                 first_condition_type=first_condition_type,
                 first_condition_note=first_condition_note,
+                previous_cost=None,
+                change_note="",
                 checked_at=checked_at,
             )
 
@@ -511,7 +581,7 @@ def scrape() -> list[Offer]:
     )
 
     for offer in offers:
-        offer.status = detect_status(offer, previous)
+        offer.status, offer.previous_cost, offer.change_note = detect_status(offer, previous)
 
     current_keys = {
         offer_identity(o.service, o.detail_url, o.detail_found)
@@ -565,17 +635,20 @@ def write_html(offers: list[Offer]) -> None:
     priced_count = sum(1 for o in offers if o.spend_for_1_lsp is not None)
     detail_count = sum(1 for o in offers if o.detail_found)
     first_count = sum(1 for o in offers if o.first_only)
-    new_count = sum(1 for o in offers if o.status == "new")
-    changed_count = sum(1 for o in offers if o.status == "changed")
+    new_offers = [o for o in offers if o.status == "new"]
+    changed_offers = [o for o in offers if o.status == "changed"]
+    new_count = len(new_offers)
+    changed_count = len(changed_offers)
 
-    ended_count = 0
+    ended_rows: list[dict[str, str]] = []
     ended_path = ROOT / "data" / "ended.csv"
     if ended_path.exists():
         try:
             with ended_path.open("r", encoding="utf-8-sig", newline="") as f:
-                ended_count = sum(1 for _ in csv.DictReader(f))
+                ended_rows = list(csv.DictReader(f))
         except Exception:
-            ended_count = 0
+            ended_rows = []
+    ended_count = len(ended_rows)
 
     categories = sorted({o.category for o in offers})
     category_buttons = ''.join(
@@ -583,22 +656,45 @@ def write_html(offers: list[Offer]) -> None:
         for c in categories
     )
 
+    change_items: list[str] = []
+    for offer in new_offers[:5]:
+        change_items.append(
+            f'<li><span class="mini-tag new">NEW</span>{html.escape(offer.service)}</li>'
+        )
+    for offer in changed_offers[:8]:
+        change_items.append(
+            f'<li><span class="mini-tag changed">変更</span>{html.escape(offer.service)}'
+            f'<small>{html.escape(offer.change_note)}</small></li>'
+        )
+    for row in ended_rows[:5]:
+        change_items.append(
+            f'<li><span class="mini-tag ended">終了</span>{html.escape(row.get("service", "名称不明"))}</li>'
+        )
+    changes_html = (
+        '<ul class="change-list">' + ''.join(change_items) + '</ul>'
+        if change_items else '<div class="no-change">前回から実質的な条件変更はありません。</div>'
+    )
+
     rows = []
-    for rank, offer in enumerate(
-        sorted(
-            [o for o in offers if o.spend_for_1_lsp is not None],
-            key=lambda o: (o.spend_for_1_lsp or 10**12, o.service),
-        ),
-        start=1,
-    ):
-        setattr(offer, "_rank", rank)
+    ranked = sorted(
+        [o for o in offers if o.spend_for_1_lsp is not None],
+        key=lambda o: (o.spend_for_1_lsp or 10**12, o.service),
+    )
+    rank_map = {
+        offer_identity(o.service, o.detail_url, o.detail_found): rank
+        for rank, o in enumerate(ranked, start=1)
+    }
 
     for offer in offers:
         tags = [f'<span class="tag category">{html.escape(offer.category)}</span>']
         if offer.status == "new":
             tags.append('<span class="tag new">NEW</span>')
         elif offer.status == "changed":
-            tags.append('<span class="tag changed">条件変更</span>')
+            change_class = "improved" if "改善" in offer.change_note else "changed"
+            tags.append(
+                f'<span class="tag {change_class}" title="{html.escape(offer.change_note)}">'
+                f'{html.escape(offer.change_note or "条件変更")}</span>'
+            )
 
         if offer.first_condition_type:
             first_class = "periodic" if offer.first_condition_type == "定期初回のみ" else "first"
@@ -614,7 +710,8 @@ def write_html(offers: list[Offer]) -> None:
         else:
             tags.append('<span class="tag ok">単価算出済み</span>')
 
-        rank = getattr(offer, "_rank", None)
+        identity = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+        rank = rank_map.get(identity)
         rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
 
         link_label = html.escape(offer.service)
@@ -624,11 +721,7 @@ def write_html(offers: list[Offer]) -> None:
             else f'<span>{link_label}</span>'
         )
 
-        favorite_key = html.escape(
-            offer_identity(offer.service, offer.detail_url, offer.detail_found),
-            quote=True,
-        )
-
+        favorite_key = html.escape(identity, quote=True)
         lsp_per_1000 = (
             1000 / offer.spend_for_1_lsp
             if offer.spend_for_1_lsp not in (None, 0)
@@ -645,7 +738,7 @@ def write_html(offers: list[Offer]) -> None:
 
         search_blob = normalize(
             f"{offer.service} {offer.condition} {offer.warning} {offer.category} "
-            f"{offer.first_condition_type} {offer.first_condition_note} "
+            f"{offer.first_condition_type} {offer.first_condition_note} {offer.change_note} "
             f"{'新着 new' if offer.status == 'new' else ''} "
             f"{'変更 changed' if offer.status == 'changed' else ''}"
         ).lower()
@@ -660,17 +753,17 @@ def write_html(offers: list[Offer]) -> None:
             data-status="{offer.status}"
             data-rank="{rank if rank else 999999}"
             data-favorite-key="{favorite_key}">
-          <td class="favorite-cell">
+          <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
-          <td class="service">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</td>
-          <td>{html.escape(offer.condition or '要確認')}</td>
-          <td class="number strong">{fmt_yen(offer.spend_for_1_lsp)}</td>
-          <td class="number">{lsp_per_1000_text}</td>
-          <td class="number">{fmt_num(offer.miles_at_1_lsp)}</td>
-          <td class="number">{fmt_yen(offer.minimum_spend) if offer.minimum_spend else ''}</td>
-          <td>{html.escape(offer.campaign_end)}</td>
-          <td class="warning">{html.escape(offer.warning)}</td>
+          <td class="service" data-label="サービス">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</td>
+          <td data-label="マイル条件">{html.escape(offer.condition or '要確認')}</td>
+          <td class="number strong" data-label="1LSP必要額">{fmt_yen(offer.spend_for_1_lsp)}</td>
+          <td class="number" data-label="1000円でLSP">{lsp_per_1000_text}</td>
+          <td class="number" data-label="獲得マイル">{fmt_num(offer.miles_at_1_lsp)}</td>
+          <td class="number" data-label="最低利用額">{fmt_yen(offer.minimum_spend) if offer.minimum_spend else ''}</td>
+          <td data-label="終了日">{html.escape(offer.campaign_end)}</td>
+          <td class="warning" data-label="注意">{html.escape(offer.warning)}</td>
         </tr>""")
 
     page = f"""<!doctype html>
@@ -694,7 +787,15 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .stat b {{ display:block; font-size:1.2rem; }}
 .stat span {{ color:var(--sub); font-size:.75rem; }}
 .changes {{ margin-top:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); font-size:.86rem; }}
-.changes b {{ margin-right:14px; }}
+.changes-head {{ display:flex; gap:14px; flex-wrap:wrap; font-weight:700; }}
+.change-list {{ margin:9px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:6px; }}
+.change-list li {{ padding:7px 8px; border:1px solid var(--line); border-radius:8px; }}
+.change-list small {{ display:block; color:var(--sub); margin:3px 0 0 43px; }}
+.mini-tag {{ display:inline-block; min-width:38px; margin-right:6px; border-radius:999px; padding:2px 6px; font-size:.68rem; text-align:center; }}
+.mini-tag.new {{ background:#ffe1e5; color:#a50018; }}
+.mini-tag.changed {{ background:#fff0cc; color:#775400; }}
+.mini-tag.ended {{ background:#e7e7e7; color:#555; }}
+.no-change {{ margin-top:8px; color:var(--sub); }}
 .controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
@@ -721,6 +822,7 @@ a {{ color:var(--accent); }}
 .tag.category {{ background:#e4f0ff; color:#285b8c; }}
 .tag.new {{ background:#ffe1e5; color:#a50018; }}
 .tag.changed {{ background:#fff0cc; color:#775400; }}
+.tag.improved {{ background:#dff5e5; color:#176b2c; }}
 .rank {{ display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }}
 .favorite-cell {{ width:42px; text-align:center; }}
 .favorite-btn {{ border:0; background:transparent; color:#999; cursor:pointer; font-size:1.45rem; line-height:1; padding:0; }}
@@ -729,15 +831,32 @@ a {{ color:var(--accent); }}
 .condition-note summary {{ cursor:pointer; }}
 .condition-note div {{ margin-top:4px; line-height:1.45; }}
 footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
+
 @media (max-width:700px) {{
-  .stats {{ grid-template-columns:repeat(2,1fr); }}
   header {{ padding-top:12px; }}
+  .stats {{ grid-template-columns:repeat(2,1fr); }}
+  .controls {{ display:grid; grid-template-columns:1fr 1fr; }}
+  .controls input {{ grid-column:1 / -1; width:100%; }}
+  .table-wrap {{ overflow:visible; border:0; background:transparent; }}
+  table {{ min-width:0; display:block; }}
+  thead {{ display:none; }}
+  tbody {{ display:grid; gap:10px; }}
+  tr {{ display:grid; grid-template-columns:1fr 1fr; background:var(--card); border:1px solid var(--line); border-radius:13px; padding:10px; }}
+  td {{ display:flex; justify-content:space-between; gap:12px; border-bottom:1px dashed var(--line); padding:8px 4px; text-align:right; }}
+  td::before {{ content:attr(data-label); color:var(--sub); font-size:.76rem; font-weight:600; text-align:left; }}
+  td.service {{ grid-column:1 / -1; display:block; text-align:left; border-bottom:1px solid var(--line); padding:3px 4px 10px; }}
+  td.service::before {{ display:none; }}
+  td.favorite-cell {{ position:absolute; right:22px; width:auto; border:0; z-index:2; }}
+  td.favorite-cell::before {{ display:none; }}
+  td.warning {{ grid-column:1 / -1; }}
+  td:empty {{ display:none; }}
+  .number {{ text-align:right; }}
 }}
 </style>
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.3</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.4</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -749,10 +868,13 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <div class="stat"><b>{first_count}</b><span>初回条件あり</span></div>
   </div>
   <div class="changes">
-    前回からの変化：
-    <b>NEW {new_count}</b>
-    <b>条件変更 {changed_count}</b>
-    <b>掲載終了 {ended_count}</b>
+    <div class="changes-head">
+      <span>前回からの変化</span>
+      <span>NEW {new_count}</span>
+      <span>条件変更 {changed_count}</span>
+      <span>掲載終了 {ended_count}</span>
+    </div>
+    {changes_html}
   </div>
   <div class="controls">
     <input id="q" type="search" placeholder="サービス名・PC・コスメ・定期初回などで検索">
@@ -848,7 +970,6 @@ function refresh() {{
       return av.localeCompare(bv);
     }}
     if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
-    if (sort.value === 'lsp1000') return Number(a.dataset.cost) - Number(b.dataset.cost);
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   }});
   sorted.forEach(row => tbody.appendChild(row));
@@ -889,6 +1010,7 @@ def main() -> None:
             "対象案件を1件も取得できませんでした。JAL側のHTML変更または一時的なアクセス制限が考えられます。"
         )
     write_csv(offers)
+    write_history(offers)
     write_html(offers)
     print(f"wrote {len(offers)} offers")
 
