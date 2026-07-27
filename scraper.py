@@ -808,7 +808,8 @@ def write_html(offers: list[Offer]) -> None:
             data-ending-soon="{'yes' if remaining is not None and 0 <= remaining <= 7 else 'no'}"
             data-favorite-key="{favorite_key}"
             data-favorite-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 0}"
-            data-favorite-lsp="{'1' if offer.spend_for_1_lsp is not None else '0'}">
+            data-favorite-lsp="{'1' if offer.spend_for_1_lsp is not None else '0'}"
+            data-done="no">
           <td class="favorite-cell" data-label="計画">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
             <button class="done-btn" type="button" title="取得済みにする">✓</button>
@@ -860,6 +861,10 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .target-box {{ display:flex; gap:7px; align-items:center; font-size:.82rem; }}
 .target-box input {{ width:90px; padding:7px 8px; font-size:14px; }}
 .target-box span {{ font-weight:700; color:var(--text); }}
+.progress-wrap {{ min-width:220px; display:flex; align-items:center; gap:8px; }}
+.progress-bar {{ width:150px; height:9px; border-radius:999px; background:var(--line); overflow:hidden; }}
+.progress-bar span {{ display:block; width:0; height:100%; background:var(--accent); transition:width .2s ease; }}
+#progressLabel {{ font-size:.75rem; white-space:nowrap; }}
 .plan-actions {{ display:flex; gap:7px; flex-wrap:wrap; }}
 .plan-actions button, .import-label {{ border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; font-size:.8rem; cursor:pointer; }}
 .import-label input {{ display:none; }}
@@ -898,6 +903,9 @@ a {{ color:var(--accent); }}
 .favorite-btn.active {{ color:#d39a00; }}
 .done-btn {{ margin-left:4px; font-size:1.05rem; border:1px solid var(--line); border-radius:999px; width:22px; height:22px; }}
 .done-btn.active {{ color:#176b2c; background:#dff5e5; border-color:#b7dfc1; }}
+tr.done-row td.service > a,
+tr.done-row td.service > span {{ text-decoration:line-through; opacity:.65; }}
+tr.done-row {{ background:color-mix(in srgb, var(--card) 90%, #dff5e5); }}
 .condition-note {{ margin-top:7px; font-weight:400; color:var(--sub); font-size:.78rem; }}
 .condition-note summary {{ cursor:pointer; }}
 .condition-note div {{ margin-top:4px; line-height:1.45; }}
@@ -908,6 +916,8 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
   .stats {{ grid-template-columns:repeat(2,1fr); }}
   .my-plan {{ align-items:flex-start; }}
   .plan-actions {{ width:100%; }}
+  .progress-wrap {{ width:100%; }}
+  .progress-bar {{ flex:1; }}
   .controls {{ display:grid; grid-template-columns:1fr 1fr; }}
   .controls input {{ grid-column:1 / -1; width:100%; }}
   .table-wrap {{ overflow:visible; border:0; background:transparent; }}
@@ -929,7 +939,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.7</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.8</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -960,6 +970,10 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <input id="targetLsp" type="number" min="0" step="1" inputmode="numeric" placeholder="例：312">
       <span id="targetResult"></span>
     </label>
+    <div class="progress-wrap" aria-label="LSP進捗">
+      <div class="progress-bar"><span id="progressFill"></span></div>
+      <span id="progressLabel">目標未設定</span>
+    </div>
     <div class="plan-actions">
       <button type="button" id="exportFavorites">お気に入りを書き出す</button>
       <label class="import-label">読み込む<input type="file" id="importFavorites" accept="application/json"></label>
@@ -971,6 +985,8 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <select id="filter">
       <option value="all">すべて</option>
       <option value="favorite">お気に入りのみ</option>
+      <option value="favorite-undone">未取得のお気に入り</option>
+      <option value="done">取得済みのみ</option>
       <option value="top20">効率TOP20</option>
       <option value="soon">終了7日以内</option>
       <option value="new">NEWのみ</option>
@@ -1019,6 +1035,8 @@ const favoriteSummary = document.querySelector('#favoriteSummary');
 const doneSummary = document.querySelector('#doneSummary');
 const targetLsp = document.querySelector('#targetLsp');
 const targetResult = document.querySelector('#targetResult');
+const progressFill = document.querySelector('#progressFill');
+const progressLabel = document.querySelector('#progressLabel');
 const resultCount = document.querySelector('#resultCount');
 const exportFavorites = document.querySelector('#exportFavorites');
 const importFavorites = document.querySelector('#importFavorites');
@@ -1051,39 +1069,51 @@ function syncFavoriteButtons() {{
     const done = doneOffers.has(key);
     doneButton.classList.toggle('active', done);
     doneButton.title = done ? '取得済みを解除' : '取得済みにする';
+    row.classList.toggle('done-row', done);
+    row.dataset.done = done ? 'yes' : 'no';
   }});
 }}
 
 function updateFavoriteSummary() {{
-  let count = 0;
-  let totalCost = 0;
-  let totalLsp = 0;
+  let plannedCount = 0;
+  let plannedCost = 0;
+  let plannedLsp = 0;
   let doneCount = 0;
   let doneLsp = 0;
 
   rows.forEach(row => {{
     const key = row.dataset.favoriteKey;
-    if (favorites.has(key)) {{
-      count += 1;
-      totalCost += Number(row.dataset.favoriteCost || 0);
-      totalLsp += Number(row.dataset.favoriteLsp || 0);
-    }}
-    if (doneOffers.has(key)) {{
+    const lsp = Number(row.dataset.favoriteLsp || 0);
+    const cost = Number(row.dataset.favoriteCost || 0);
+    const done = doneOffers.has(key);
+
+    if (done) {{
       doneCount += 1;
-      doneLsp += Number(row.dataset.favoriteLsp || 0);
+      doneLsp += lsp;
+    }}
+
+    if (favorites.has(key) && !done) {{
+      plannedCount += 1;
+      plannedCost += cost;
+      plannedLsp += lsp;
     }}
   }});
 
   favoriteSummary.textContent =
-    `${{count}}件・合計 ¥${{totalCost.toLocaleString('ja-JP')}}・獲得目安 ${{totalLsp}}LSP`;
+    `未取得お気に入り ${{plannedCount}}件・合計 ¥${{plannedCost.toLocaleString('ja-JP')}}・予定 ${{plannedLsp}}LSP`;
   doneSummary.textContent = `取得済み ${{doneCount}}件・${{doneLsp}}LSP`;
 
   const target = Number(targetLsp.value || 0);
   if (target > 0) {{
-    const afterPlan = Math.max(0, target - doneLsp - totalLsp);
-    targetResult.textContent =
-      `→ この計画後 残り${{afterPlan}}LSP`;
+    const achieved = Math.min(target, doneLsp);
+    const afterPlan = Math.max(0, target - doneLsp - plannedLsp);
+    const progress = Math.min(100, (achieved / target) * 100);
+    progressFill.style.width = `${{progress}}%`;
+    progressLabel.textContent = `${{doneLsp}} / ${{target}} LSP`;
+    targetResult.textContent = `→ この計画後 残り${{afterPlan}}LSP`;
   }} else {{
+    progressFill.style.width = '0%';
+    progressLabel.textContent = '目標未設定';
     targetResult.textContent = '';
   }}
 }}
@@ -1098,6 +1128,8 @@ function refresh() {{
     const modeOK =
       mode === 'all' ||
       (mode === 'favorite' && isFavorite) ||
+      (mode === 'favorite-undone' && isFavorite && row.dataset.done !== 'yes') ||
+      (mode === 'done' && row.dataset.done === 'yes') ||
       (mode === 'top20' && Number(row.dataset.rank) <= 20) ||
       (mode === 'soon' && row.dataset.endingSoon === 'yes') ||
       (mode === 'new' && row.dataset.status === 'new') ||
@@ -1132,24 +1164,33 @@ function refresh() {{
   updateFavoriteSummary();
 }}
 
+function refreshPreservingScroll() {{
+  const x = window.scrollX;
+  const y = window.scrollY;
+  refresh();
+  requestAnimationFrame(() => window.scrollTo(x, y));
+}}
+
 rows.forEach(row => {{
   const button = row.querySelector('.favorite-btn');
   const doneButton = row.querySelector('.done-btn');
 
-  button.addEventListener('click', () => {{
+  button.addEventListener('click', event => {{
+    event.preventDefault();
     const key = row.dataset.favoriteKey;
     if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
     saveFavorites();
     syncFavoriteButtons();
-    refresh();
+    refreshPreservingScroll();
   }});
 
-  doneButton.addEventListener('click', () => {{
+  doneButton.addEventListener('click', event => {{
+    event.preventDefault();
     const key = row.dataset.favoriteKey;
     if (doneOffers.has(key)) doneOffers.delete(key); else doneOffers.add(key);
     saveDone();
     syncFavoriteButtons();
-    refresh();
+    refreshPreservingScroll();
   }});
 }});
 
