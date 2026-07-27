@@ -1,0 +1,6 @@
+{
+  "search_url": "https://partner.jal.co.jp/search_result/?ptn=1&ct=4&mu=4&mu=3&mu=2&mu=b&lcat=201&lcat=202&lcat=203&lcat=204&lcat=205&lcat=206&lcat=207&lcat=208&lcat=209&lcat=210&lcat=211&lcat=212&scat=20101&scat=20201&scat=1002&scat=20203&scat=20204&scat=20205&scat=20206&scat=20207&scat=20208&scat=20209&scat=20210&scat=20204&scat=20302&scat=20303&scat=20305&scat=20306&scat=20307&scat=20401&scat=20402&scat=20403&scat=20404&scat=20405&scat=20501&scat=20502&scat=20503&scat=20504&scat=20505&scat=20506&scat=20507&scat=20508&scat=20509&scat=20510&scat=20511&scat=20512&scat=20513&scat=20514&scat=20515&scat=20516&scat=20517&scat=20518&scat=20601&scat=1201&scat=20511&scat=20512&scat=20801&scat=20206&scat=20803&scat=20804&scat=20805&scat=20806&scat=20807&scat=20516&scat=20809&scat=20810&scat=1906&scat=20902&scat=1702&scat=20510&scat=20514&scat=20515&scat=20503&scat=2003&scat=21003&scat=21004&scat=2005&scat=21006&scat=20507&scat=21008&scat=20518&scat=21101&scat=21102&scat=20510&scat=21201&scat=21202",
+  "pages": 4,
+  "request_interval_seconds": 1.0,
+  "timeout_seconds": 30
+}
