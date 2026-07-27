@@ -806,7 +806,9 @@ def write_html(offers: list[Offer]) -> None:
             data-status="{offer.status}"
             data-rank="{rank if rank else 999999}"
             data-ending-soon="{'yes' if remaining is not None and 0 <= remaining <= 7 else 'no'}"
-            data-favorite-key="{favorite_key}">
+            data-favorite-key="{favorite_key}"
+            data-favorite-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 0}"
+            data-favorite-lsp="{'1' if offer.spend_for_1_lsp is not None else '0'}">
           <td class="favorite-cell" data-label="お気に入り">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
           </td>
@@ -850,6 +852,13 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .mini-tag.changed {{ background:#fff0cc; color:#775400; }}
 .mini-tag.ended {{ background:#e7e7e7; color:#555; }}
 .no-change {{ margin-top:8px; color:var(--sub); }}
+.my-plan {{ margin-top:10px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }}
+.my-plan strong {{ margin-right:10px; }}
+.my-plan span {{ color:var(--sub); }}
+.plan-actions {{ display:flex; gap:7px; flex-wrap:wrap; }}
+.plan-actions button, .import-label {{ border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; font-size:.8rem; cursor:pointer; }}
+.import-label input {{ display:none; }}
+.result-count {{ color:var(--sub); font-size:.8rem; margin:7px 2px 0; }}
 .controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
@@ -889,6 +898,8 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 @media (max-width:700px) {{
   header {{ padding-top:12px; }}
   .stats {{ grid-template-columns:repeat(2,1fr); }}
+  .my-plan {{ align-items:flex-start; }}
+  .plan-actions {{ width:100%; }}
   .controls {{ display:grid; grid-template-columns:1fr 1fr; }}
   .controls input {{ grid-column:1 / -1; width:100%; }}
   .table-wrap {{ overflow:visible; border:0; background:transparent; }}
@@ -910,7 +921,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.5</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.6</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -929,6 +940,17 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <span>掲載終了 {ended_count}</span>
     </div>
     {changes_html}
+  </div>
+  <div class="my-plan">
+    <div>
+      <strong>お気に入りプラン</strong>
+      <span id="favoriteSummary">0件・合計 ¥0・獲得目安 0LSP</span>
+    </div>
+    <div class="plan-actions">
+      <button type="button" id="exportFavorites">お気に入りを書き出す</button>
+      <label class="import-label">読み込む<input type="file" id="importFavorites" accept="application/json"></label>
+      <button type="button" id="clearFavorites">すべて解除</button>
+    </div>
   </div>
   <div class="controls">
     <input id="q" type="search" placeholder="サービス名・PC・コスメ・定期初回などで検索">
@@ -951,12 +973,14 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <option value="name">サービス名順</option>
       <option value="end">終了日が近い順</option>
       <option value="status">NEW・変更を上に</option>
+      <option value="favorite">お気に入りを上に</option>
     </select>
   </div>
   <div class="categories">
     <button type="button" class="cat-btn active" data-category="">全部</button>
     {category_buttons}
   </div>
+  <div class="result-count" id="resultCount"></div>
 </header>
 <main>
 <div class="table-wrap">
@@ -977,6 +1001,11 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+const favoriteSummary = document.querySelector('#favoriteSummary');
+const resultCount = document.querySelector('#resultCount');
+const exportFavorites = document.querySelector('#exportFavorites');
+const importFavorites = document.querySelector('#importFavorites');
+const clearFavorites = document.querySelector('#clearFavorites');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
 let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
 let activeCategory = '';
@@ -993,6 +1022,20 @@ function syncFavoriteButtons() {{
     button.classList.toggle('active', active);
     button.textContent = active ? '★' : '☆';
   }});
+}}
+
+function updateFavoriteSummary() {{
+  let count = 0;
+  let totalCost = 0;
+  let totalLsp = 0;
+  rows.forEach(row => {{
+    if (!favorites.has(row.dataset.favoriteKey)) return;
+    count += 1;
+    totalCost += Number(row.dataset.favoriteCost || 0);
+    totalLsp += Number(row.dataset.favoriteLsp || 0);
+  }});
+  favoriteSummary.textContent =
+    `${{count}}件・合計 ¥${{totalCost.toLocaleString('ja-JP')}}・獲得目安 ${{totalLsp}}LSP`;
 }}
 
 function refresh() {{
@@ -1026,9 +1069,17 @@ function refresh() {{
       return av.localeCompare(bv);
     }}
     if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
+    if (sort.value === 'favorite') {{
+      const af = favorites.has(a.dataset.favoriteKey) ? 0 : 1;
+      const bf = favorites.has(b.dataset.favoriteKey) ? 0 : 1;
+      if (af !== bf) return af - bf;
+    }}
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   }});
   sorted.forEach(row => tbody.appendChild(row));
+  const visibleCount = rows.filter(row => !row.hidden).length;
+  resultCount.textContent = `${{visibleCount}}件を表示`;
+  updateFavoriteSummary();
 }}
 
 rows.forEach(row => {{
@@ -1040,6 +1091,47 @@ rows.forEach(row => {{
     syncFavoriteButtons();
     refresh();
   }});
+}});
+
+exportFavorites.addEventListener('click', () => {{
+  const payload = {{
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    favorites: [...favorites],
+  }};
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {{type: 'application/json'}});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'jal-lsp-favorites.json';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}});
+
+importFavorites.addEventListener('change', async event => {{
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {{
+    const payload = JSON.parse(await file.text());
+    const imported = Array.isArray(payload) ? payload : payload.favorites;
+    if (!Array.isArray(imported)) throw new Error('invalid');
+    favorites = new Set(imported.map(String));
+    saveFavorites();
+    syncFavoriteButtons();
+    refresh();
+  }} catch {{
+    alert('お気に入りファイルを読み込めませんでした。');
+  }} finally {{
+    event.target.value = '';
+  }}
+}});
+
+clearFavorites.addEventListener('click', () => {{
+  if (!confirm('お気に入りをすべて解除しますか？')) return;
+  favorites.clear();
+  saveFavorites();
+  syncFavoriteButtons();
+  refresh();
 }});
 
 categoryButtons.forEach(button => {{
