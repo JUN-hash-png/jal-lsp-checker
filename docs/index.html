@@ -11,50 +11,66 @@
 }
 * { box-sizing:border-box; }
 body { margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }
-header { padding:20px 16px 12px; max-width:1300px; margin:auto; }
+header { padding:18px 12px 10px; max-width:1350px; margin:auto; }
 h1 { margin:0 0 6px; font-size:1.55rem; }
-.note { color:var(--sub); font-size:.88rem; line-height:1.5; }
-.controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+.note { color:var(--sub); font-size:.86rem; line-height:1.5; }
+.stats { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin-top:12px; }
+.stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+.stat b { display:block; font-size:1.2rem; }
+.stat span { color:var(--sub); font-size:.75rem; }
+.controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 input,select { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }
 input { flex:1; min-width:220px; }
-main { max-width:1300px; margin:auto; padding:0 10px 28px; }
+main { max-width:1350px; margin:auto; padding:0 8px 28px; }
 .table-wrap { overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }
 table { width:100%; border-collapse:collapse; min-width:1050px; }
 th,td { padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.9rem; }
 th { position:sticky; top:0; background:var(--card); z-index:1; white-space:nowrap; }
 .number { text-align:right; white-space:nowrap; }
 .strong { font-weight:800; font-size:1rem; }
-.service { min-width:190px; font-weight:650; }
+.service { min-width:220px; font-weight:650; }
 a { color:var(--accent); }
-.warning { min-width:260px; color:var(--sub); font-size:.82rem; }
-.tags { margin-top:6px; display:flex; gap:4px; }
+.warning { min-width:220px; color:var(--sub); font-size:.82rem; }
+.tags { margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }
 .tag { border-radius:999px; padding:2px 7px; font-size:.7rem; font-weight:600; }
 .tag.ok { background:#dff5e5; color:#176b2c; }
 .tag.warn { background:#fff0cc; color:#775400; }
 .tag.first { background:#e9e1ff; color:#56358c; }
-footer { max-width:1300px; margin:auto; padding:0 16px 30px; color:var(--sub); font-size:.8rem; }
+.tag.linkless { background:#e7e7e7; color:#555; }
+footer { max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }
+@media (max-width:700px) {
+  .stats { grid-template-columns:repeat(2,1fr); }
+  header { padding-top:12px; }
+}
 </style>
 </head>
 <body>
 <header>
   <h1>JAL LSP Checker</h1>
   <div class="note">
-    JAL Mileage Parkの検索結果と詳細ページから自動生成。<br>
-    「1LSP必要額」は、通常のMileage Parkルール（100マイル=1LSP）で100マイル以上になる最小課金単位。
-    個別LSPルール・固定ボーナス・除外条件は「要確認」として計算を止めます。<br>
-    最終更新: 2026-07-27T14:36:58+00:00
+    JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
+    最終更新: 2026-07-27T14:47:57+00:00
+  </div>
+  <div class="stats">
+    <div class="stat"><b>55</b><span>掲載案件</span></div>
+    <div class="stat"><b>55</b><span>自動計算できた案件</span></div>
+    <div class="stat"><b>20</b><span>詳細ページ取得済み</span></div>
+    <div class="stat"><b>18</b><span>初回条件あり</span></div>
   </div>
   <div class="controls">
-    <input id="q" type="search" placeholder="サービス名・条件・警告を検索">
+    <input id="q" type="search" placeholder="サービス名・条件を検索">
     <select id="filter">
       <option value="all">すべて</option>
       <option value="auto">自動計算のみ</option>
       <option value="warn">要確認のみ</option>
-      <option value="first">初回系のみ</option>
+      <option value="detail">詳細ページ取得済み</option>
+      <option value="linkless">検索結果のみ</option>
+      <option value="first">初回条件あり</option>
     </select>
     <select id="sort">
       <option value="cost">1LSP必要額が安い順</option>
       <option value="name">サービス名順</option>
+      <option value="end">終了日が近い順</option>
     </select>
   </div>
 </header>
@@ -66,672 +82,725 @@ footer { max-width:1300px; margin:auto; padding:0 16px 30px; color:var(--sub); f
 <th>最低利用額</th><th>終了日</th><th>注意</th>
 </tr></thead>
 <tbody>
-        <tr data-search="山田養蜂場 商品のご購入 100円ごとに 5 マイル 詳細ページurlを自動取得できません"
-            data-cost="2000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">山田養蜂場 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="山田養蜂場 100円ごとに 5 マイル  初回詳細あり"
+            data-cost="2000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">山田養蜂場</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 5 マイル</td>
           <td class="number strong">¥2,000</td>
           <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ノートンストア 商品のご購入 200円ごとに 9 マイル 詳細ページurlを自動取得できません"
-            data-cost="2400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">ノートンストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ノートンストア 200円ごとに 9 マイル  初回詳細あり"
+            data-cost="2400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ノートンストア</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 9 マイル</td>
           <td class="number strong">¥2,400</td>
           <td class="number">108</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="bonaventura 商品購入 100円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="2500">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">BONAVENTURA 商品購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="bonaventura 商品購入 100円ごとに 4 マイル  詳細なし"
+            data-cost="2500"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>BONAVENTURA 商品購入</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="koh gen do 公式オンラインショップ 商品のご購入 100円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="2500">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">Koh Gen Do 公式オンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="koh gen do 公式オンラインショップ 100円ごとに 4 マイル  詳細なし"
+            data-cost="2500"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>Koh Gen Do 公式オンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="イイハナ・ドットコム（e87.com） 商品のご購入 100円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="2500">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">イイハナ・ドットコム（e87.com） 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="イイハナ・ドットコム（e87.com） 100円ごとに 4 マイル  詳細なし"
+            data-cost="2500"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>イイハナ・ドットコム（e87.com）</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="クラランス オンラインショップ 商品のご購入 100円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="2500">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">クラランス オンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="クラランス オンラインショップ 100円ごとに 4 マイル  詳細なし"
+            data-cost="2500"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>クラランス オンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="メガネのオンデーズ公式オンラインストア 商品のご購入 100円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="2500">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">メガネのオンデーズ公式オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="メガネのオンデーズ公式オンラインストア 100円ごとに 4 マイル  詳細なし"
+            data-cost="2500"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>メガネのオンデーズ公式オンラインストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 4 マイル</td>
           <td class="number strong">¥2,500</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="トレンドマイクロ・オンラインショップ 商品のご購入 200円ごとに 8 マイル 詳細ページurlを自動取得できません"
-            data-cost="2600">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">トレンドマイクロ・オンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="トレンドマイクロ・オンラインショップ 200円ごとに 8 マイル  初回詳細あり"
+            data-cost="2600"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">トレンドマイクロ・オンラインショップ</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 8 マイル</td>
           <td class="number strong">¥2,600</td>
           <td class="number">104</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="nars 商品のご購入 200円ごとに 7 マイル 詳細ページurlを自動取得できません"
-            data-cost="3000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">NARS 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="nars 200円ごとに 7 マイル  詳細なし"
+            data-cost="3000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>NARS</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 7 マイル</td>
           <td class="number strong">¥3,000</td>
           <td class="number">105</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ショップジャパン 商品のご購入 150円ごとに 5 マイル 詳細ページurlを自動取得できません"
-            data-cost="3000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">ショップジャパン 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ショップジャパン 150円ごとに 5 マイル  詳細なし"
+            data-cost="3000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>ショップジャパン</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>150円ごとに 5 マイル</td>
           <td class="number strong">¥3,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="aokiオンラインショップ 商品のご購入 200円ごとに 6 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">AOKIオンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="aokiオンラインショップ 200円ごとに 6 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>AOKIオンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 6 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="サニーヘルスオンラインショップ 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">サニーヘルスオンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="サニーヘルスオンラインショップ 100円ごとに 3 マイル  初回詳細あり"
+            data-cost="3400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サニーヘルスオンラインショップ</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="サントリーウエルネスオンライン 100円ごとに 3 マイル  初回詳細あり"
+            data-cost="3400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">サントリーウエルネスオンライン</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="セフィーヌ 公式オンラインショップ 100円ごとに 3 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>セフィーヌ 公式オンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="サントリーウエルネスオンライン 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">サントリーウエルネスオンライン 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ソースネクストｅshop 100円ごとに 3 マイル  詳細あり"
+            data-cost="3400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10147/" target="_blank" rel="noopener">ソースネクストｅSHOP</a><div class="tags"><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-09-30</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="ベルーナグルメ 100円ごとに 3 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>ベルーナグルメ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="セフィーヌ 公式オンラインショップ 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">セフィーヌ 公式オンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ポケトーク公式オンラインストア 100円ごとに 3 マイル  初回詳細あり"
+            data-cost="3400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ポケトーク公式オンラインストア</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="リンベル公式オンラインストア 100円ごとに 3 マイル  初回詳細あり"
+            data-cost="3400"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">リンベル公式オンラインストア</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 3 マイル</td>
+          <td class="number strong">¥3,400</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="三越伊勢丹オンラインストア 100円ごとに 3 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>三越伊勢丹オンラインストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ソースネクストｅshop 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">ソースネクストｅSHOP 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="大丸松坂屋オンラインストア 100円ごとに 3 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>大丸松坂屋オンラインストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ベルーナグルメ 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">ベルーナグルメ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="日比谷花壇 100円ごとに 3 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>日比谷花壇</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 3 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ポケトーク公式オンラインストア 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">ポケトーク公式オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 3 マイル</td>
-          <td class="number strong">¥3,400</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="リンベル公式オンラインストア 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">リンベル公式オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 3 マイル</td>
-          <td class="number strong">¥3,400</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="三越伊勢丹オンラインストア 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">三越伊勢丹オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 3 マイル</td>
-          <td class="number strong">¥3,400</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="大丸松坂屋オンラインストア 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">大丸松坂屋オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 3 マイル</td>
-          <td class="number strong">¥3,400</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="日比谷花壇 商品のご購入 100円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">日比谷花壇 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 3 マイル</td>
-          <td class="number strong">¥3,400</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="資生堂オンラインストア 商品のご購入 200円ごとに 6 マイル 詳細ページurlを自動取得できません"
-            data-cost="3400">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">資生堂オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="資生堂オンラインストア 200円ごとに 6 マイル  詳細なし"
+            data-cost="3400"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>資生堂オンラインストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 6 マイル</td>
           <td class="number strong">¥3,400</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="dyson（ダイソン） 商品の購入および15日以内の入金確認 200円ごとに 5 マイル 詳細ページurlを自動取得できません"
-            data-cost="4000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">Dyson（ダイソン） 商品の購入および15日以内の入金確認</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="dyson（ダイソン） 商品の購入および15日以内の入金確認 200円ごとに 5 マイル  詳細なし"
+            data-cost="4000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>Dyson（ダイソン） 商品の購入および15日以内の入金確認</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 5 マイル</td>
           <td class="number strong">¥4,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ピザハット公式サイト 商品のご購入 400円ごとに 9 マイル 詳細ページurlを自動取得できません"
-            data-cost="4800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">ピザハット公式サイト 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ピザハット公式サイト 400円ごとに 9 マイル  初回詳細あり"
+            data-cost="4800"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ピザハット公式サイト</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>400円ごとに 9 マイル</td>
           <td class="number strong">¥4,800</td>
           <td class="number">108</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="lancôme（ランコム） 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">LANCÔME（ランコム） 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="lancôme（ランコム） 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>LANCÔME（ランコム）</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="moma design store 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">MoMA Design Store 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="moma design store 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>MoMA Design Store</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="vaioストア 商品のご購入 200円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">VAIOストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="vaioストア 200円ごとに 4 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>VAIOストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 4 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="adidas online shop 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">adidas Online Shop 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="adidas online shop 100円ごとに 2 マイル  初回詳細あり"
+            data-cost="5000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">adidas Online Shop</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 2 マイル</td>
+          <td class="number strong">¥5,000</td>
+          <td class="number">100</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="iherb 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>iHerb</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="iherb 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">iHerb 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="〔ベルーナ〕my wine club 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>〔ベルーナ〕My Wine CLUB</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="〔ベルーナ〕my wine club 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">〔ベルーナ〕My Wine CLUB 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="イヴ・サンローラン・ボーテ公式オンラインブティック 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>イヴ・サンローラン・ボーテ公式オンラインブティック</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="イヴ・サンローラン・ボーテ公式オンラインブティック 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">イヴ・サンローラン・ボーテ公式オンラインブティック 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="キールズ公式通販サイト 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>キールズ公式通販サイト</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="キールズ公式通販サイト 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">キールズ公式通販サイト 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="クロックス オンラインショップ 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>クロックス オンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="クロックス オンラインショップ 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">クロックス オンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="グンゼ 公式通販 100円ごとに 2 マイル  初回詳細あり"
+            data-cost="5000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">グンゼ 公式通販</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 2 マイル</td>
+          <td class="number strong">¥5,000</td>
+          <td class="number">100</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="シュウ ウエムラ公式通販サイト 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>シュウ ウエムラ公式通販サイト</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="グンゼ 公式通販 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">グンゼ 公式通販 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="セシールオンラインショップ 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>セシールオンラインショップ</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="シュウ ウエムラ公式通販サイト 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">シュウ ウエムラ公式通販サイト 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="セブンネットショッピング 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>セブンネットショッピング</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="セシールオンラインショップ 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">セシールオンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ロクシタンオンラインショップ 100円ごとに 2 マイル  初回詳細あり"
+            data-cost="5000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">ロクシタンオンラインショップ</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>100円ごとに 2 マイル</td>
+          <td class="number strong">¥5,000</td>
+          <td class="number">100</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="小田急百貨店オンラインショッピング 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>小田急百貨店オンラインショッピング</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="セブンネットショッピング 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">セブンネットショッピング 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="生涯学習のユーキャン 100円ごとに 2 マイル  詳細なし"
+            data-cost="5000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>生涯学習のユーキャン</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="ロクシタンオンラインショップ 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">ロクシタンオンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="高島屋オンラインストア 100円ごとに 2 マイル  初回詳細あり"
+            data-cost="5000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">高島屋オンラインストア</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>100円ごとに 2 マイル</td>
           <td class="number strong">¥5,000</td>
           <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="小田急百貨店オンラインショッピング 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">小田急百貨店オンラインショッピング 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 2 マイル</td>
-          <td class="number strong">¥5,000</td>
-          <td class="number">100</td>
+        <tr data-search="fmv store 200円ごとに 3 マイル  初回詳細あり"
+            data-cost="6800"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">FMV Store</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>200円ごとに 3 マイル</td>
+          <td class="number strong">¥6,800</td>
+          <td class="number">102</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="生涯学習のユーキャン 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">生涯学習のユーキャン 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 2 マイル</td>
-          <td class="number strong">¥5,000</td>
-          <td class="number">100</td>
+        <tr data-search="hp directplus 200円ごとに 3 マイル  初回詳細あり"
+            data-cost="6800"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">HP Directplus</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>200円ごとに 3 マイル</td>
+          <td class="number strong">¥6,800</td>
+          <td class="number">102</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="高島屋オンラインストア 商品のご購入 100円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="5000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">高島屋オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>100円ごとに 2 マイル</td>
-          <td class="number strong">¥5,000</td>
-          <td class="number">100</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="fmv store 商品のご購入 200円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="6800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">FMV Store 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="yogibo公式オンラインストア 200円ごとに 3 マイル  詳細なし"
+            data-cost="6800"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>Yogibo公式オンラインストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="hp directplus 商品のご購入 200円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="6800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">HP Directplus 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="イオンショップ 200円ごとに 3 マイル  初回詳細あり"
+            data-cost="6800"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">イオンショップ</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>200円ごとに 3 マイル</td>
+          <td class="number strong">¥6,800</td>
+          <td class="number">102</td>
+          <td class="number"></td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
+        </tr>
+        <tr data-search="西武・そごう公式オンラインストア e.デパート 200円ごとに 3 マイル  詳細なし"
+            data-cost="6800"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>西武・そごう公式オンラインストア e.デパート</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 3 マイル</td>
           <td class="number strong">¥6,800</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="yogibo公式オンラインストア 商品のご購入 200円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="6800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">Yogibo公式オンラインストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>200円ごとに 3 マイル</td>
-          <td class="number strong">¥6,800</td>
-          <td class="number">102</td>
+        <tr data-search="dhcオンラインショップ 200円ごとに 2 マイル  初回詳細あり"
+            data-cost="10000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">DHCオンラインショップ</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>200円ごとに 2 マイル</td>
+          <td class="number strong">¥10,000</td>
+          <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="イオンショップ 商品のご購入 200円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="6800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">イオンショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>200円ごとに 3 マイル</td>
-          <td class="number strong">¥6,800</td>
-          <td class="number">102</td>
+        <tr data-search="dynabook direct 200円ごとに 2 マイル  初回詳細あり"
+            data-cost="10000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">Dynabook Direct</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
+          <td>200円ごとに 2 マイル</td>
+          <td class="number strong">¥10,000</td>
+          <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="西武・そごう公式オンラインストア e.デパート 商品のご購入 200円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="6800">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">西武・そごう公式オンラインストア e.デパート 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>200円ごとに 3 マイル</td>
-          <td class="number strong">¥6,800</td>
-          <td class="number">102</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="dhcオンラインショップ 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">DHCオンラインショップ 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="kojima.net 200円ごとに 2 マイル  詳細なし"
+            data-cost="10000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>Kojima.net</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="dynabook direct 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">Dynabook Direct 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="びゅうトラベル（えきねっと jr東日本国内ツアー） ツアー代金の申し込み 200円ごとに 2 マイル  詳細なし"
+            data-cost="10000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>びゅうトラベル（えきねっと JR東日本国内ツアー） ツアー代金の申し込み</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="kojima.net 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">Kojima.net 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="デル・オンライン・ストア（個人向け） 200円ごとに 2 マイル  詳細あり"
+            data-cost="10000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10251" target="_blank" rel="noopener">デル・オンライン・ストア（個人向け）</a><div class="tags"><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-09-30</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="びゅうトラベル（えきねっと jr東日本国内ツアー） ツアー代金の申し込み 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">びゅうトラベル（えきねっと JR東日本国内ツアー） ツアー代金の申し込み</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="デル・オンライン・ストア（法人向け） 200円ごとに 2 マイル  初回詳細あり"
+            data-cost="10000"
+            data-detail="yes"
+            data-warning="no"
+            data-first="yes">
+          <td class="service"><a href="https://partner.jal.co.jp/jmb/partner/feature/10678" target="_blank" rel="noopener">デル・オンライン・ストア（法人向け）</a><div class="tags"><span class="tag first">初回条件あり</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td>2026-08-02</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="デル・オンライン・ストア（個人向け） 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">デル・オンライン・ストア（個人向け） 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>200円ごとに 2 マイル</td>
-          <td class="number strong">¥10,000</td>
-          <td class="number">100</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="デル・オンライン・ストア（法人向け） 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202" target="_blank" rel="noopener">デル・オンライン・ストア（法人向け） 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
-          <td>200円ごとに 2 マイル</td>
-          <td class="number strong">¥10,000</td>
-          <td class="number">100</td>
-          <td class="number"></td>
-          <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
-        </tr>
-        <tr data-search="ビックカメラ.com 商品ご購入 400円ごとに 4 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">ビックカメラ.com 商品ご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="ビックカメラ.com 400円ごとに 4 マイル  詳細なし"
+            data-cost="10000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>ビックカメラ.com</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>400円ごとに 4 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="マウスコンピューター 商品のご購入 200円ごとに 2 マイル 詳細ページurlを自動取得できません"
-            data-cost="10000">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=2" target="_blank" rel="noopener">マウスコンピューター 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="マウスコンピューター 200円ごとに 2 マイル  詳細なし"
+            data-cost="10000"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>マウスコンピューター</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>200円ごとに 2 マイル</td>
           <td class="number strong">¥10,000</td>
           <td class="number">100</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr>
-        <tr data-search="無印良品ネットストア 商品のご購入 300円ごとに 3 マイル 詳細ページurlを自動取得できません"
-            data-cost="10200">
-          <td class="service"><a href="https://partner.jal.co.jp/search_result/?ptn=1&amp;ct=4&amp;mu=4&amp;mu=3&amp;mu=2&amp;mu=b&amp;lcat=201&amp;lcat=202&amp;lcat=203&amp;lcat=204&amp;lcat=205&amp;lcat=206&amp;lcat=207&amp;lcat=208&amp;lcat=209&amp;lcat=210&amp;lcat=211&amp;lcat=212&amp;scat=20101&amp;scat=20201&amp;scat=1002&amp;scat=20203&amp;scat=20204&amp;scat=20205&amp;scat=20206&amp;scat=20207&amp;scat=20208&amp;scat=20209&amp;scat=20210&amp;scat=20204&amp;scat=20302&amp;scat=20303&amp;scat=20305&amp;scat=20306&amp;scat=20307&amp;scat=20401&amp;scat=20402&amp;scat=20403&amp;scat=20404&amp;scat=20405&amp;scat=20501&amp;scat=20502&amp;scat=20503&amp;scat=20504&amp;scat=20505&amp;scat=20506&amp;scat=20507&amp;scat=20508&amp;scat=20509&amp;scat=20510&amp;scat=20511&amp;scat=20512&amp;scat=20513&amp;scat=20514&amp;scat=20515&amp;scat=20516&amp;scat=20517&amp;scat=20518&amp;scat=20601&amp;scat=1201&amp;scat=20511&amp;scat=20512&amp;scat=20801&amp;scat=20206&amp;scat=20803&amp;scat=20804&amp;scat=20805&amp;scat=20806&amp;scat=20807&amp;scat=20516&amp;scat=20809&amp;scat=20810&amp;scat=1906&amp;scat=20902&amp;scat=1702&amp;scat=20510&amp;scat=20514&amp;scat=20515&amp;scat=20503&amp;scat=2003&amp;scat=21003&amp;scat=21004&amp;scat=2005&amp;scat=21006&amp;scat=20507&amp;scat=21008&amp;scat=20518&amp;scat=21101&amp;scat=21102&amp;scat=20510&amp;scat=21201&amp;scat=21202&amp;pn=3" target="_blank" rel="noopener">無印良品ネットストア 商品のご購入</a>
-            <div class="tags"><span class="tag warn">要確認</span></div>
-          </td>
+        <tr data-search="無印良品ネットストア 300円ごとに 3 マイル  詳細なし"
+            data-cost="10200"
+            data-detail="no"
+            data-warning="no"
+            data-first="no">
+          <td class="service"><span>無印良品ネットストア</span><div class="tags"><span class="tag linkless">検索結果のみ</span><span class="tag ok">自動計算</span></div></td>
           <td>300円ごとに 3 マイル</td>
           <td class="number strong">¥10,200</td>
           <td class="number">102</td>
           <td class="number"></td>
           <td></td>
-          <td class="warning">詳細ページURLを自動取得できません</td>
+          <td class="warning"></td>
         </tr></tbody>
 </table>
 </div>
 </main>
-<footer>
-自動抽出結果なので、利用前には必ずJALの詳細ページで最新条件を確認してください。
-</footer>
+<footer>自動抽出結果なので、利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
 <script>
 const tbody = document.querySelector('#offers tbody');
 const rows = [...tbody.querySelectorAll('tr')];
@@ -744,15 +813,23 @@ function refresh() {
   const mode = filter.value;
   rows.forEach(row => {
     const textOK = !term || row.dataset.search.includes(term);
-    const hasWarn = row.querySelector('.tag.warn');
-    const hasFirst = row.querySelector('.tag.first');
-    const modeOK = mode === 'all' || (mode === 'auto' && !hasWarn) ||
-                   (mode === 'warn' && hasWarn) || (mode === 'first' && hasFirst);
+    const modeOK =
+      mode === 'all' ||
+      (mode === 'auto' && row.dataset.warning === 'no') ||
+      (mode === 'warn' && row.dataset.warning === 'yes') ||
+      (mode === 'detail' && row.dataset.detail === 'yes') ||
+      (mode === 'linkless' && row.dataset.detail === 'no') ||
+      (mode === 'first' && row.dataset.first === 'yes');
     row.hidden = !(textOK && modeOK);
   });
 
   const sorted = [...rows].sort((a,b) => {
     if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
+    if (sort.value === 'end') {
+      const av = a.cells[5].innerText.trim() || '9999-12-31';
+      const bv = b.cells[5].innerText.trim() || '9999-12-31';
+      return av.localeCompare(bv);
+    }
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   });
   sorted.forEach(row => tbody.appendChild(row));
