@@ -809,8 +809,9 @@ def write_html(offers: list[Offer]) -> None:
             data-favorite-key="{favorite_key}"
             data-favorite-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 0}"
             data-favorite-lsp="{'1' if offer.spend_for_1_lsp is not None else '0'}">
-          <td class="favorite-cell" data-label="お気に入り">
+          <td class="favorite-cell" data-label="計画">
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
+            <button class="done-btn" type="button" title="取得済みにする">✓</button>
           </td>
           <td class="service" data-label="サービス">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</td>
           <td data-label="マイル条件">{html.escape(offer.condition or '要確認')}</td>
@@ -855,6 +856,10 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .my-plan {{ margin-top:10px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }}
 .my-plan strong {{ margin-right:10px; }}
 .my-plan span {{ color:var(--sub); }}
+.plan-summary {{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }}
+.target-box {{ display:flex; gap:7px; align-items:center; font-size:.82rem; }}
+.target-box input {{ width:90px; padding:7px 8px; font-size:14px; }}
+.target-box span {{ font-weight:700; color:var(--text); }}
 .plan-actions {{ display:flex; gap:7px; flex-wrap:wrap; }}
 .plan-actions button, .import-label {{ border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; font-size:.8rem; cursor:pointer; }}
 .import-label input {{ display:none; }}
@@ -888,8 +893,11 @@ a {{ color:var(--accent); }}
 .tag.improved {{ background:#dff5e5; color:#176b2c; }}
 .rank {{ display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }}
 .favorite-cell {{ width:42px; text-align:center; }}
-.favorite-btn {{ border:0; background:transparent; color:#999; cursor:pointer; font-size:1.45rem; line-height:1; padding:0; }}
+.favorite-btn, .done-btn {{ border:0; background:transparent; color:#999; cursor:pointer; line-height:1; padding:0; }}
+.favorite-btn {{ font-size:1.45rem; }}
 .favorite-btn.active {{ color:#d39a00; }}
+.done-btn {{ margin-left:4px; font-size:1.05rem; border:1px solid var(--line); border-radius:999px; width:22px; height:22px; }}
+.done-btn.active {{ color:#176b2c; background:#dff5e5; border-color:#b7dfc1; }}
 .condition-note {{ margin-top:7px; font-weight:400; color:var(--sub); font-size:.78rem; }}
 .condition-note summary {{ cursor:pointer; }}
 .condition-note div {{ margin-top:4px; line-height:1.45; }}
@@ -921,7 +929,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.6</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.7</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -942,10 +950,16 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     {changes_html}
   </div>
   <div class="my-plan">
-    <div>
+    <div class="plan-summary">
       <strong>お気に入りプラン</strong>
       <span id="favoriteSummary">0件・合計 ¥0・獲得目安 0LSP</span>
+      <span id="doneSummary">取得済み 0件・0LSP</span>
     </div>
+    <label class="target-box">
+      残り目標LSP
+      <input id="targetLsp" type="number" min="0" step="1" inputmode="numeric" placeholder="例：312">
+      <span id="targetResult"></span>
+    </label>
     <div class="plan-actions">
       <button type="button" id="exportFavorites">お気に入りを書き出す</button>
       <label class="import-label">読み込む<input type="file" id="importFavorites" accept="application/json"></label>
@@ -1002,16 +1016,27 @@ const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
 const favoriteSummary = document.querySelector('#favoriteSummary');
+const doneSummary = document.querySelector('#doneSummary');
+const targetLsp = document.querySelector('#targetLsp');
+const targetResult = document.querySelector('#targetResult');
 const resultCount = document.querySelector('#resultCount');
 const exportFavorites = document.querySelector('#exportFavorites');
 const importFavorites = document.querySelector('#importFavorites');
 const clearFavorites = document.querySelector('#clearFavorites');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
+const DONE_KEY = 'jal-lsp-done-v1';
+const TARGET_KEY = 'jal-lsp-target-v1';
 let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
+let doneOffers = new Set(JSON.parse(localStorage.getItem(DONE_KEY) || '[]'));
+targetLsp.value = localStorage.getItem(TARGET_KEY) || '';
 let activeCategory = '';
 
 function saveFavorites() {{
   localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+}}
+
+function saveDone() {{
+  localStorage.setItem(DONE_KEY, JSON.stringify([...doneOffers]));
 }}
 
 function syncFavoriteButtons() {{
@@ -1021,6 +1046,11 @@ function syncFavoriteButtons() {{
     const active = favorites.has(key);
     button.classList.toggle('active', active);
     button.textContent = active ? '★' : '☆';
+
+    const doneButton = row.querySelector('.done-btn');
+    const done = doneOffers.has(key);
+    doneButton.classList.toggle('active', done);
+    doneButton.title = done ? '取得済みを解除' : '取得済みにする';
   }});
 }}
 
@@ -1028,14 +1058,34 @@ function updateFavoriteSummary() {{
   let count = 0;
   let totalCost = 0;
   let totalLsp = 0;
+  let doneCount = 0;
+  let doneLsp = 0;
+
   rows.forEach(row => {{
-    if (!favorites.has(row.dataset.favoriteKey)) return;
-    count += 1;
-    totalCost += Number(row.dataset.favoriteCost || 0);
-    totalLsp += Number(row.dataset.favoriteLsp || 0);
+    const key = row.dataset.favoriteKey;
+    if (favorites.has(key)) {{
+      count += 1;
+      totalCost += Number(row.dataset.favoriteCost || 0);
+      totalLsp += Number(row.dataset.favoriteLsp || 0);
+    }}
+    if (doneOffers.has(key)) {{
+      doneCount += 1;
+      doneLsp += Number(row.dataset.favoriteLsp || 0);
+    }}
   }});
+
   favoriteSummary.textContent =
     `${{count}}件・合計 ¥${{totalCost.toLocaleString('ja-JP')}}・獲得目安 ${{totalLsp}}LSP`;
+  doneSummary.textContent = `取得済み ${{doneCount}}件・${{doneLsp}}LSP`;
+
+  const target = Number(targetLsp.value || 0);
+  if (target > 0) {{
+    const afterPlan = Math.max(0, target - doneLsp - totalLsp);
+    targetResult.textContent =
+      `→ この計画後 残り${{afterPlan}}LSP`;
+  }} else {{
+    targetResult.textContent = '';
+  }}
 }}
 
 function refresh() {{
@@ -1084,6 +1134,8 @@ function refresh() {{
 
 rows.forEach(row => {{
   const button = row.querySelector('.favorite-btn');
+  const doneButton = row.querySelector('.done-btn');
+
   button.addEventListener('click', () => {{
     const key = row.dataset.favoriteKey;
     if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
@@ -1091,13 +1143,23 @@ rows.forEach(row => {{
     syncFavoriteButtons();
     refresh();
   }});
+
+  doneButton.addEventListener('click', () => {{
+    const key = row.dataset.favoriteKey;
+    if (doneOffers.has(key)) doneOffers.delete(key); else doneOffers.add(key);
+    saveDone();
+    syncFavoriteButtons();
+    refresh();
+  }});
 }});
 
 exportFavorites.addEventListener('click', () => {{
   const payload = {{
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     favorites: [...favorites],
+    doneOffers: [...doneOffers],
+    targetLsp: targetLsp.value,
   }};
   const blob = new Blob([JSON.stringify(payload, null, 2)], {{type: 'application/json'}});
   const url = URL.createObjectURL(blob);
@@ -1116,7 +1178,11 @@ importFavorites.addEventListener('change', async event => {{
     const imported = Array.isArray(payload) ? payload : payload.favorites;
     if (!Array.isArray(imported)) throw new Error('invalid');
     favorites = new Set(imported.map(String));
+    doneOffers = new Set((payload.doneOffers || []).map(String));
+    targetLsp.value = payload.targetLsp || '';
     saveFavorites();
+    saveDone();
+    localStorage.setItem(TARGET_KEY, targetLsp.value);
     syncFavoriteButtons();
     refresh();
   }} catch {{
@@ -1132,6 +1198,11 @@ clearFavorites.addEventListener('click', () => {{
   saveFavorites();
   syncFavoriteButtons();
   refresh();
+}});
+
+targetLsp.addEventListener('input', () => {{
+  localStorage.setItem(TARGET_KEY, targetLsp.value);
+  updateFavoriteSummary();
 }});
 
 categoryButtons.forEach(button => {{
