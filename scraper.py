@@ -765,7 +765,14 @@ def write_html(offers: list[Offer]) -> None:
 
         identity = offer_identity(offer.service, offer.detail_url, offer.detail_found, offer.condition)
         rank = rank_map.get(identity)
-        rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
+        if rank == 1:
+            rank_html = '<span class="rank medal">🥇 1位</span>'
+        elif rank == 2:
+            rank_html = '<span class="rank medal">🥈 2位</span>'
+        elif rank == 3:
+            rank_html = '<span class="rank medal">🥉 3位</span>'
+        else:
+            rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
 
         link_label = html.escape(offer.service)
         service_html = (
@@ -796,8 +803,16 @@ def write_html(offers: list[Offer]) -> None:
             f"{'変更 changed' if offer.status == 'changed' else ''}"
         ).lower()
 
+        row_classes = []
+        if offer.status == "new":
+            row_classes.append("row-new")
+        elif offer.status == "changed":
+            row_classes.append("row-changed")
+        if remaining is not None and 0 <= remaining <= 7:
+            row_classes.append("row-soon")
+
         rows.append(f"""
-        <tr data-search="{html.escape(search_blob)}"
+        <tr class="{' '.join(row_classes)}" data-search="{html.escape(search_blob)}"
             data-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 999999999}"
             data-detail="{'yes' if offer.detail_found else 'no'}"
             data-warning="{'yes' if offer.warning else 'no'}"
@@ -872,7 +887,15 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
+.today-summary {{ margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
+.today-summary span {{ border-radius:999px; padding:4px 9px; font-size:.76rem; font-weight:700; }}
+.today-new {{ background:#ffe1e5; color:#a50018; }}
+.today-changed {{ background:#fff0cc; color:#775400; }}
+.today-ended {{ background:#e7e7e7; color:#555; }}
 .categories {{ display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; }}
+.quick-filters {{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }}
+.quick-btn {{ border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); padding:6px 10px; cursor:pointer; font-size:.78rem; }}
+.quick-btn.active {{ border-color:var(--accent); color:var(--accent); font-weight:700; }}
 .cat-btn {{ flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); padding:7px 11px; cursor:pointer; }}
 .cat-btn.active {{ border-color:var(--accent); color:var(--accent); font-weight:700; }}
 main {{ max-width:1400px; margin:auto; padding:0 8px 28px; }}
@@ -897,6 +920,7 @@ a {{ color:var(--accent); }}
 .tag.changed {{ background:#fff0cc; color:#775400; }}
 .tag.improved {{ background:#dff5e5; color:#176b2c; }}
 .rank {{ display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }}
+.rank.medal {{ color:var(--text); font-weight:800; }}
 .favorite-cell {{ width:42px; text-align:center; }}
 .favorite-btn, .done-btn {{ border:0; background:transparent; color:#999; cursor:pointer; line-height:1; padding:0; }}
 .favorite-btn {{ font-size:1.45rem; }}
@@ -939,7 +963,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.8</small></h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.9</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -949,6 +973,12 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <div class="stat"><b>{priced_count}</b><span>1LSP単価算出済み</span></div>
     <div class="stat"><b>{detail_count}</b><span>詳細ページ取得済み</span></div>
     <div class="stat"><b>{first_count}</b><span>初回条件あり</span></div>
+  </div>
+  <div class="today-summary">
+    <strong>今日の更新</strong>
+    <span class="today-new">NEW {new_count}</span>
+    <span class="today-changed">変更 {changed_count}</span>
+    <span class="today-ended">終了 {ended_count}</span>
   </div>
   <div class="changes">
     <div class="changes-head">
@@ -975,7 +1005,8 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <span id="progressLabel">目標未設定</span>
     </div>
     <div class="plan-actions">
-      <button type="button" id="exportFavorites">お気に入りを書き出す</button>
+      <button type="button" id="exportFavorites">お気に入りJSON</button>
+      <button type="button" id="exportFavoritesCsv">お気に入りCSV</button>
       <label class="import-label">読み込む<input type="file" id="importFavorites" accept="application/json"></label>
       <button type="button" id="clearFavorites">すべて解除</button>
     </div>
@@ -1010,6 +1041,14 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <button type="button" class="cat-btn active" data-category="">全部</button>
     {category_buttons}
   </div>
+  <div class="quick-filters">
+    <button type="button" class="quick-btn" data-filter="first">初回条件</button>
+    <button type="button" class="quick-btn" data-filter="soon">終了間近</button>
+    <button type="button" class="quick-btn" data-filter="detail">詳細取得済み</button>
+    <button type="button" class="quick-btn" data-filter="linkless">検索結果のみ</button>
+    <button type="button" class="quick-btn" data-filter="favorite">お気に入り</button>
+    <button type="button" class="quick-btn" data-filter="done">取得済み</button>
+  </div>
   <div class="result-count" id="resultCount"></div>
 </header>
 <main>
@@ -1031,6 +1070,7 @@ const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
 const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+const quickButtons = [...document.querySelectorAll('.quick-btn')];
 const favoriteSummary = document.querySelector('#favoriteSummary');
 const doneSummary = document.querySelector('#doneSummary');
 const targetLsp = document.querySelector('#targetLsp');
@@ -1039,6 +1079,7 @@ const progressFill = document.querySelector('#progressFill');
 const progressLabel = document.querySelector('#progressLabel');
 const resultCount = document.querySelector('#resultCount');
 const exportFavorites = document.querySelector('#exportFavorites');
+const exportFavoritesCsv = document.querySelector('#exportFavoritesCsv');
 const importFavorites = document.querySelector('#importFavorites');
 const clearFavorites = document.querySelector('#clearFavorites');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
@@ -1211,6 +1252,28 @@ exportFavorites.addEventListener('click', () => {{
   URL.revokeObjectURL(url);
 }});
 
+exportFavoritesCsv.addEventListener('click', () => {{
+  const rowsForCsv = rows.filter(row => favorites.has(row.dataset.favoriteKey));
+  const header = ['サービス','マイル条件','1LSP必要額','1000円でLSP','終了日','取得済み'];
+  const body = rowsForCsv.map(row => [
+    row.cells[1].innerText.replace(/\\s+/g, ' ').trim(),
+    row.cells[2].innerText.trim(),
+    row.cells[3].innerText.trim(),
+    row.cells[4].innerText.trim(),
+    row.cells[7].innerText.trim(),
+    doneOffers.has(row.dataset.favoriteKey) ? '済' : '未',
+  ]);
+  const escapeCsv = value => `"${{String(value).replaceAll('"', '""')}}"`;
+  const csv = '\ufeff' + [header, ...body].map(cols => cols.map(escapeCsv).join(',')).join('\r\n');
+  const blob = new Blob([csv], {{type: 'text/csv;charset=utf-8'}});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'jal-lsp-favorites.csv';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}});
+
 importFavorites.addEventListener('change', async event => {{
   const file = event.target.files?.[0];
   if (!file) return;
@@ -1246,6 +1309,20 @@ targetLsp.addEventListener('input', () => {{
   updateFavoriteSummary();
 }});
 
+quickButtons.forEach(button => {{
+  button.addEventListener('click', () => {{
+    const value = button.dataset.filter;
+    filter.value = filter.value === value ? 'all' : value;
+    quickButtons.forEach(b => b.classList.toggle('active', b === button && filter.value === value));
+    refresh();
+  }});
+}});
+
+filter.addEventListener('change', () => {{
+  quickButtons.forEach(button => button.classList.toggle('active', button.dataset.filter === filter.value));
+  refresh();
+}});
+
 categoryButtons.forEach(button => {{
   button.addEventListener('click', () => {{
     activeCategory = button.dataset.category;
@@ -1254,7 +1331,6 @@ categoryButtons.forEach(button => {{
   }});
 }});
 q.addEventListener('input', refresh);
-filter.addEventListener('change', refresh);
 sort.addEventListener('change', refresh);
 syncFavoriteButtons();
 refresh();
