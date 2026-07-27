@@ -54,6 +54,38 @@ FIRST_ONLY_PHRASES = (
 )
 
 
+CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("PC・ソフト", (
+        "dell", "デル", "hp", "fmv", "dynabook", "ノートン", "トレンドマイクロ",
+        "ソースネクスト", "ポケトーク", "パソコン", "セキュリティ", "ウイルスバスター",
+    )),
+    ("美容・コスメ", (
+        "dhc", "クラランス", "nars", "koh gen do", "江原道", "サニーヘルス",
+        "サントリーウエルネス", "化粧品", "コスメ", "美容", "スキンケア",
+    )),
+    ("食品・健康", (
+        "山田養蜂場", "食品", "グルメ", "健康食品", "サプリ", "はちみつ",
+        "ショップジャパン", "サントリー",
+    )),
+    ("ファッション", (
+        "aoki", "bonaventura", "グンゼ", "メガネ", "オンデーズ", "眼鏡",
+        "アディダス", "adidas", "ファッション", "バッグ", "衣料",
+    )),
+    ("花・ギフト", (
+        "イイハナ", "e87", "リンベル", "ギフト", "フラワー", "花",
+    )),
+    ("旅行・交通", (
+        "jal abc", "旅行", "ホテル", "レンタカー", "空港", "宅配", "手荷物",
+    )),
+    ("ふるさと納税", (
+        "ふるさと納税", "自治体",
+    )),
+    ("家電・通販", (
+        "高島屋", "イオン", "通販", "家電", "オンラインショップ", "e shop",
+    )),
+)
+
+
 @dataclass
 class Offer:
     service: str
@@ -69,6 +101,8 @@ class Offer:
     warning: str
     detail_url: str
     detail_found: bool
+    category: str
+    status: str
     checked_at: str
 
 
@@ -223,6 +257,60 @@ def extract_service_and_condition(block: Tag) -> tuple[str, str]:
     return service or "名称取得失敗", condition
 
 
+
+def categorize(service: str, detail_text: str = "") -> str:
+    haystack = normalize(f"{service} {detail_text}").lower()
+    for category, keywords in CATEGORY_RULES:
+        if any(keyword.lower() in haystack for keyword in keywords):
+            return category
+    return "その他"
+
+
+def offer_identity(service: str, detail_url: str, detail_found: bool) -> str:
+    if detail_found and detail_url:
+        return detail_url.rstrip("/")
+    normalized_service = re.sub(r"[^0-9a-zA-Zぁ-んァ-ヶ一-龠]+", "", service.lower())
+    return normalized_service
+
+
+def load_previous_offers() -> dict[str, dict[str, str]]:
+    path = ROOT / "data" / "offers.csv"
+    if not path.exists():
+        return {}
+
+    previous: dict[str, dict[str, str]] = {}
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                service = row.get("service", "")
+                detail_url = row.get("detail_url", "")
+                detail_found = str(row.get("detail_found", "")).lower() in ("true", "1", "yes")
+                key = offer_identity(service, detail_url, detail_found)
+                if key:
+                    previous[key] = row
+    except Exception as exc:
+        print(f"Previous CSV could not be read: {type(exc).__name__}")
+    return previous
+
+
+def detect_status(offer: Offer, previous: dict[str, dict[str, str]]) -> str:
+    key = offer_identity(offer.service, offer.detail_url, offer.detail_found)
+    old = previous.get(key)
+    if old is None:
+        return "new"
+
+    comparisons = {
+        "condition": offer.condition,
+        "spend_for_1_lsp": "" if offer.spend_for_1_lsp is None else str(offer.spend_for_1_lsp),
+        "campaign_end": offer.campaign_end,
+        "first_only": str(offer.first_only),
+    }
+    for field, current in comparisons.items():
+        if str(old.get(field, "")) != current:
+            return "changed"
+    return "same"
+
+
 def parse_campaign_end(text: str) -> str:
     # Prefer the end of an explicit date range, e.g. 2026年5月1日～8月2日.
     ranges = list(DATE_RANGE_RE.finditer(text))
@@ -284,6 +372,7 @@ def parse_detail(session: requests.Session, url: str) -> tuple[str, str]:
 def scrape() -> list[Offer]:
     session = requests.Session()
     checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    previous = load_previous_offers()
     offers_by_key: dict[tuple[str, str], Offer] = {}
 
     for page in range(1, int(CONFIG.get("pages", 4)) + 1):
@@ -347,6 +436,8 @@ def scrape() -> list[Offer]:
                 warning=" / ".join(dict.fromkeys(warnings)),
                 detail_url=detail_url,
                 detail_found=detail_found,
+                category=categorize(service, detail_text),
+                status="same",
                 checked_at=checked_at,
             )
 
@@ -363,6 +454,27 @@ def scrape() -> list[Offer]:
             x.service,
         ),
     )
+
+    for offer in offers:
+        offer.status = detect_status(offer, previous)
+
+    current_keys = {
+        offer_identity(o.service, o.detail_url, o.detail_found)
+        for o in offers
+    }
+    ended_rows = [
+        row for key, row in previous.items()
+        if key not in current_keys
+    ]
+    ended_path = ROOT / "data" / "ended.csv"
+    if ended_rows:
+        with ended_path.open("w", encoding="utf-8-sig", newline="") as f:
+            fieldnames = sorted({k for row in ended_rows for k in row.keys()})
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(ended_rows)
+    elif ended_path.exists():
+        ended_path.unlink()
 
     # A silent partial scrape is worse than a visible failure.
     expected_minimum = int(CONFIG.get("expected_minimum_offers", 20))
@@ -395,13 +507,34 @@ def fmt_num(value) -> str:
 def write_html(offers: list[Offer]) -> None:
     updated = offers[0].checked_at if offers else datetime.now().astimezone().isoformat(timespec="seconds")
     total = len(offers)
-    auto_count = sum(1 for o in offers if not o.warning)
+    priced_count = sum(1 for o in offers if o.spend_for_1_lsp is not None)
     detail_count = sum(1 for o in offers if o.detail_found)
     first_count = sum(1 for o in offers if o.first_only)
+    new_count = sum(1 for o in offers if o.status == "new")
+    changed_count = sum(1 for o in offers if o.status == "changed")
+
+    ended_count = 0
+    ended_path = ROOT / "data" / "ended.csv"
+    if ended_path.exists():
+        try:
+            with ended_path.open("r", encoding="utf-8-sig", newline="") as f:
+                ended_count = sum(1 for _ in csv.DictReader(f))
+        except Exception:
+            ended_count = 0
+
+    categories = sorted({o.category for o in offers})
+    category_buttons = ''.join(
+        f'<button type="button" class="cat-btn" data-category="{html.escape(c)}">{html.escape(c)}</button>'
+        for c in categories
+    )
 
     rows = []
     for offer in offers:
-        tags = []
+        tags = [f'<span class="tag category">{html.escape(offer.category)}</span>']
+        if offer.status == "new":
+            tags.append('<span class="tag new">NEW</span>')
+        elif offer.status == "changed":
+            tags.append('<span class="tag changed">条件変更</span>')
         if offer.first_only:
             tags.append('<span class="tag first">初回条件あり</span>')
         if not offer.detail_found:
@@ -409,7 +542,7 @@ def write_html(offers: list[Offer]) -> None:
         if offer.warning:
             tags.append('<span class="tag warn">要確認</span>')
         else:
-            tags.append('<span class="tag ok">自動計算</span>')
+            tags.append('<span class="tag ok">単価算出済み</span>')
 
         link_label = html.escape(offer.service)
         service_html = (
@@ -417,9 +550,13 @@ def write_html(offers: list[Offer]) -> None:
             if offer.detail_found
             else f'<span>{link_label}</span>'
         )
-        search_blob = (
-            offer.service + " " + offer.condition + " " + offer.warning + " "
-            + ("初回" if offer.first_only else "") + ("詳細あり" if offer.detail_found else "詳細なし")
+
+        # Category names are included so "PC" finds PC・ソフト offers.
+        search_blob = normalize(
+            f"{offer.service} {offer.condition} {offer.warning} {offer.category} "
+            f"{'初回' if offer.first_only else ''} "
+            f"{'新着 new' if offer.status == 'new' else ''} "
+            f"{'変更 changed' if offer.status == 'changed' else ''}"
         ).lower()
 
         rows.append(f"""
@@ -427,7 +564,9 @@ def write_html(offers: list[Offer]) -> None:
             data-cost="{offer.spend_for_1_lsp if offer.spend_for_1_lsp is not None else 999999999}"
             data-detail="{'yes' if offer.detail_found else 'no'}"
             data-warning="{'yes' if offer.warning else 'no'}"
-            data-first="{'yes' if offer.first_only else 'no'}">
+            data-first="{'yes' if offer.first_only else 'no'}"
+            data-category="{html.escape(offer.category)}"
+            data-status="{offer.status}">
           <td class="service">{service_html}<div class="tags">{''.join(tags)}</div></td>
           <td>{html.escape(offer.condition or '要確認')}</td>
           <td class="number strong">{fmt_yen(offer.spend_for_1_lsp)}</td>
@@ -457,9 +596,14 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .stat {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }}
 .stat b {{ display:block; font-size:1.2rem; }}
 .stat span {{ color:var(--sub); font-size:.75rem; }}
+.changes {{ margin-top:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); font-size:.86rem; }}
+.changes b {{ margin-right:14px; }}
 .controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
+.categories {{ display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; }}
+.cat-btn {{ flex:0 0 auto; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); padding:7px 11px; cursor:pointer; }}
+.cat-btn.active {{ border-color:var(--accent); color:var(--accent); font-weight:700; }}
 main {{ max-width:1350px; margin:auto; padding:0 8px 28px; }}
 .table-wrap {{ overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:14px; }}
 table {{ width:100%; border-collapse:collapse; min-width:1050px; }}
@@ -476,6 +620,9 @@ a {{ color:var(--accent); }}
 .tag.warn {{ background:#fff0cc; color:#775400; }}
 .tag.first {{ background:#e9e1ff; color:#56358c; }}
 .tag.linkless {{ background:#e7e7e7; color:#555; }}
+.tag.category {{ background:#e4f0ff; color:#285b8c; }}
+.tag.new {{ background:#ffe1e5; color:#a50018; }}
+.tag.changed {{ background:#fff0cc; color:#775400; }}
 footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
 @media (max-width:700px) {{
   .stats {{ grid-template-columns:repeat(2,1fr); }}
@@ -485,22 +632,30 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker</h1>
+  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.2</small></h1>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
   </div>
   <div class="stats">
     <div class="stat"><b>{total}</b><span>掲載案件</span></div>
-    <div class="stat"><b>{auto_count}</b><span>自動計算できた案件</span></div>
+    <div class="stat"><b>{priced_count}</b><span>1LSP単価算出済み</span></div>
     <div class="stat"><b>{detail_count}</b><span>詳細ページ取得済み</span></div>
     <div class="stat"><b>{first_count}</b><span>初回条件あり</span></div>
   </div>
+  <div class="changes">
+    前回からの変化：
+    <b>NEW {new_count}</b>
+    <b>条件変更 {changed_count}</b>
+    <b>掲載終了 {ended_count}</b>
+  </div>
   <div class="controls">
-    <input id="q" type="search" placeholder="サービス名・条件を検索">
+    <input id="q" type="search" placeholder="サービス名・PC・コスメ・食品などで検索">
     <select id="filter">
       <option value="all">すべて</option>
-      <option value="auto">自動計算のみ</option>
+      <option value="new">NEWのみ</option>
+      <option value="changed">条件変更のみ</option>
+      <option value="priced">単価算出済み</option>
       <option value="warn">要確認のみ</option>
       <option value="detail">詳細ページ取得済み</option>
       <option value="linkless">検索結果のみ</option>
@@ -510,7 +665,12 @@ footer {{ max-width:1350px; margin:auto; padding:0 12px 30px; color:var(--sub); 
       <option value="cost">1LSP必要額が安い順</option>
       <option value="name">サービス名順</option>
       <option value="end">終了日が近い順</option>
+      <option value="status">NEW・変更を上に</option>
     </select>
+  </div>
+  <div class="categories">
+    <button type="button" class="cat-btn active" data-category="">全部</button>
+    {category_buttons}
   </div>
 </header>
 <main>
@@ -531,22 +691,28 @@ const rows = [...tbody.querySelectorAll('tr')];
 const q = document.querySelector('#q');
 const filter = document.querySelector('#filter');
 const sort = document.querySelector('#sort');
+const categoryButtons = [...document.querySelectorAll('.cat-btn')];
+let activeCategory = '';
 
 function refresh() {{
   const term = q.value.trim().toLowerCase();
   const mode = filter.value;
   rows.forEach(row => {{
     const textOK = !term || row.dataset.search.includes(term);
+    const categoryOK = !activeCategory || row.dataset.category === activeCategory;
     const modeOK =
       mode === 'all' ||
-      (mode === 'auto' && row.dataset.warning === 'no') ||
+      (mode === 'new' && row.dataset.status === 'new') ||
+      (mode === 'changed' && row.dataset.status === 'changed') ||
+      (mode === 'priced' && Number(row.dataset.cost) < 999999999) ||
       (mode === 'warn' && row.dataset.warning === 'yes') ||
       (mode === 'detail' && row.dataset.detail === 'yes') ||
       (mode === 'linkless' && row.dataset.detail === 'no') ||
       (mode === 'first' && row.dataset.first === 'yes');
-    row.hidden = !(textOK && modeOK);
+    row.hidden = !(textOK && categoryOK && modeOK);
   }});
 
+  const priority = {{new:0, changed:1, same:2}};
   const sorted = [...rows].sort((a,b) => {{
     if (sort.value === 'name') return a.cells[0].innerText.localeCompare(b.cells[0].innerText, 'ja');
     if (sort.value === 'end') {{
@@ -554,10 +720,19 @@ function refresh() {{
       const bv = b.cells[5].innerText.trim() || '9999-12-31';
       return av.localeCompare(bv);
     }}
+    if (sort.value === 'status') return priority[a.dataset.status] - priority[b.dataset.status];
     return Number(a.dataset.cost) - Number(b.dataset.cost);
   }});
   sorted.forEach(row => tbody.appendChild(row));
 }}
+
+categoryButtons.forEach(button => {{
+  button.addEventListener('click', () => {{
+    activeCategory = button.dataset.category;
+    categoryButtons.forEach(b => b.classList.toggle('active', b === button));
+    refresh();
+  }});
+}});
 q.addEventListener('input', refresh);
 filter.addEventListener('change', refresh);
 sort.addEventListener('change', refresh);
