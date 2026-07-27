@@ -843,6 +843,11 @@ def write_html(offers: list[Offer]) -> None:
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JAL LSP Checker</title>
 <style>
@@ -850,10 +855,16 @@ def write_html(offers: list[Offer]) -> None:
 @media (prefers-color-scheme:dark) {{
   :root {{ --bg:#111; --card:#1b1b1d; --text:#f5f5f5; --sub:#aaa; --line:#3a3a3a; --accent:#ff5a6f; }}
 }}
+:root[data-theme="light"] {{ --bg:#f7f7f8; --card:#fff; --text:#222; --sub:#666; --line:#ddd; --accent:#c90023; }}
+:root[data-theme="dark"] {{ --bg:#111; --card:#1b1b1d; --text:#f5f5f5; --sub:#aaa; --line:#3a3a3a; --accent:#ff5a6f; }}
 * {{ box-sizing:border-box; }}
 body {{ margin:0; font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); }}
 header {{ padding:18px 12px 10px; max-width:1400px; margin:auto; }}
+.title-row {{ display:flex; justify-content:space-between; align-items:center; gap:12px; }}
 h1 {{ margin:0 0 6px; font-size:1.55rem; }}
+.header-actions {{ display:flex; gap:7px; }}
+.header-actions button, #resetView {{ border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; cursor:pointer; }}
+#themeToggle {{ min-width:40px; font-size:1rem; }}
 .note {{ color:var(--sub); font-size:.86rem; line-height:1.5; }}
 .stats {{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin-top:12px; }}
 .stat {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }}
@@ -883,7 +894,9 @@ h1 {{ margin:0 0 6px; font-size:1.55rem; }}
 .plan-actions {{ display:flex; gap:7px; flex-wrap:wrap; }}
 .plan-actions button, .import-label {{ border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); padding:7px 10px; font-size:.8rem; cursor:pointer; }}
 .import-label input {{ display:none; }}
-.result-count {{ color:var(--sub); font-size:.8rem; margin:7px 2px 0; }}
+.result-tools {{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:7px; }}
+.result-count {{ color:var(--sub); font-size:.8rem; margin:0 2px; }}
+#resetView {{ font-size:.75rem; padding:5px 8px; }}
 .controls {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }}
 input,select {{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font-size:16px; }}
 input {{ flex:1; min-width:220px; }}
@@ -933,6 +946,8 @@ tr.done-row {{ background:color-mix(in srgb, var(--card) 90%, #dff5e5); }}
 .condition-note {{ margin-top:7px; font-weight:400; color:var(--sub); font-size:.78rem; }}
 .condition-note summary {{ cursor:pointer; }}
 .condition-note div {{ margin-top:4px; line-height:1.45; }}
+#backToTop {{ position:fixed; right:16px; bottom:18px; width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--text); box-shadow:0 4px 18px rgba(0,0,0,.18); cursor:pointer; font-size:1.15rem; opacity:0; pointer-events:none; transform:translateY(8px); transition:.2s; z-index:10; }}
+#backToTop.visible {{ opacity:1; pointer-events:auto; transform:none; }}
 footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); font-size:.8rem; }}
 
 @media (max-width:700px) {{
@@ -963,7 +978,13 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </head>
 <body>
 <header>
-  <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.1.9</small></h1>
+  <div class="title-row">
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0</small></h1>
+    <div class="header-actions">
+      <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
+      <button type="button" id="installApp" hidden>ホーム画面に追加</button>
+    </div>
+  </div>
   <div class="note">
     JAL Mileage Parkの検索結果・詳細ページから自動生成。通常案件は100マイル＝1LSPとして計算。<br>
     最終更新: {html.escape(updated)}
@@ -1049,7 +1070,10 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
     <button type="button" class="quick-btn" data-filter="favorite">お気に入り</button>
     <button type="button" class="quick-btn" data-filter="done">取得済み</button>
   </div>
-  <div class="result-count" id="resultCount"></div>
+  <div class="result-tools">
+    <div class="result-count" id="resultCount"></div>
+    <button type="button" id="resetView">絞り込みをリセット</button>
+  </div>
 </header>
 <main>
 <div class="table-wrap">
@@ -1062,6 +1086,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 </table>
 </div>
 </main>
+<button type="button" id="backToTop" aria-label="ページ先頭へ戻る">↑</button>
 <footer>お気に入りはこの端末のブラウザ内に保存されます。利用前には必ずJAL公式ページで最新条件を確認してください。</footer>
 <script>
 const tbody = document.querySelector('#offers tbody');
@@ -1082,6 +1107,10 @@ const exportFavorites = document.querySelector('#exportFavorites');
 const exportFavoritesCsv = document.querySelector('#exportFavoritesCsv');
 const importFavorites = document.querySelector('#importFavorites');
 const clearFavorites = document.querySelector('#clearFavorites');
+const themeToggle = document.querySelector('#themeToggle');
+const installApp = document.querySelector('#installApp');
+const resetView = document.querySelector('#resetView');
+const backToTop = document.querySelector('#backToTop');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
 const DONE_KEY = 'jal-lsp-done-v1';
 const TARGET_KEY = 'jal-lsp-target-v1';
@@ -1089,6 +1118,22 @@ let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
 let doneOffers = new Set(JSON.parse(localStorage.getItem(DONE_KEY) || '[]'));
 targetLsp.value = localStorage.getItem(TARGET_KEY) || '';
 let activeCategory = '';
+const THEME_KEY = 'jal-lsp-theme-v1';
+let deferredInstallPrompt = null;
+
+function applyTheme(theme) {{
+  document.documentElement.dataset.theme = theme;
+  themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+  themeToggle.title = theme === 'dark' ? 'ライト表示に切り替える' : 'ダーク表示に切り替える';
+  document.querySelector('meta[name="theme-color"]').setAttribute(
+    'content', theme === 'dark' ? '#111111' : '#ffffff'
+  );
+}}
+
+const savedTheme = localStorage.getItem(THEME_KEY);
+const initialTheme = savedTheme ||
+  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+applyTheme(initialTheme);
 
 function saveFavorites() {{
   localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
@@ -1332,12 +1377,123 @@ categoryButtons.forEach(button => {{
 }});
 q.addEventListener('input', refresh);
 sort.addEventListener('change', refresh);
+
+themeToggle.addEventListener('click', () => {{
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}});
+
+resetView.addEventListener('click', () => {{
+  q.value = '';
+  filter.value = 'all';
+  sort.value = 'cost';
+  activeCategory = '';
+  categoryButtons.forEach(button => button.classList.toggle('active', button.dataset.category === ''));
+  quickButtons.forEach(button => button.classList.remove('active'));
+  refresh();
+}});
+
+window.addEventListener('scroll', () => {{
+  backToTop.classList.toggle('visible', window.scrollY > 600);
+}}, {{passive:true}});
+
+backToTop.addEventListener('click', () => {{
+  window.scrollTo({{top:0, behavior:'smooth'}});
+}});
+
+window.addEventListener('beforeinstallprompt', event => {{
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  installApp.hidden = false;
+}});
+
+installApp.addEventListener('click', async () => {{
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  installApp.hidden = true;
+}});
+
+window.addEventListener('appinstalled', () => {{
+  deferredInstallPrompt = null;
+  installApp.hidden = true;
+}});
+
+if ('serviceWorker' in navigator) {{
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}}
+
 syncFavoriteButtons();
 refresh();
 </script>
 </body>
 </html>"""
-    (ROOT / "docs" / "index.html").write_text(page, encoding="utf-8")
+    docs_dir = ROOT / "docs"
+    docs_dir.mkdir(exist_ok=True)
+    (docs_dir / "index.html").write_text(page, encoding="utf-8")
+
+    manifest = {
+        "name": "JAL LSP Checker",
+        "short_name": "LSP Checker",
+        "description": "JAL Mileage ParkのLSP対象案件を確認するダッシュボード",
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#ffffff",
+        "lang": "ja",
+        "icons": [
+            {
+                "src": "icon.svg",
+                "sizes": "any",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }
+        ]
+    }
+    (docs_dir / "manifest.webmanifest").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+
+    icon_svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="104" fill="#c90023"/>
+<path d="M118 104h82v210c0 61-36 98-98 98H72v-72h22c17 0 24-9 24-28V104zm126 0h82v236h114v72H244V104z" fill="white"/>
+</svg>'''
+    (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
+
+    service_worker = '''const CACHE = "jal-lsp-v2";
+const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)));
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        const copy = response.clone();
+        caches.open(CACHE).then(cache => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request).then(hit => hit || caches.match("./index.html")))
+  );
+});'''
+    (docs_dir / "sw.js").write_text(service_worker, encoding="utf-8")
 
 def main() -> None:
     offers = scrape()
