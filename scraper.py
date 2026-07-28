@@ -13,6 +13,8 @@ from typing import Iterable
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup, Tag
 
 ROOT = Path(__file__).resolve().parent
@@ -147,15 +149,81 @@ def with_page(url: str, page: int) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
-def get(session: requests.Session, url: str) -> str:
-    response = session.get(
-        url,
-        headers=HEADERS,
-        timeout=CONFIG.get("timeout_seconds", 30),
+def build_session() -> requests.Session:
+    """Create an HTTP session that retries temporary server/network failures."""
+    session = build_session()
+    retry_policy = Retry(
+        total=4,
+        connect=4,
+        read=4,
+        status=4,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+        respect_retry_after_header=True,
     )
-    response.raise_for_status()
-    response.encoding = response.apparent_encoding or "utf-8"
-    return response.text
+    adapter = HTTPAdapter(
+        max_retries=retry_policy,
+        pool_connections=4,
+        pool_maxsize=4,
+    )
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+def get(
+    session: requests.Session,
+    url: str,
+    *,
+    attempts: int = 3,
+) -> str:
+    """
+    Fetch a page with an additional retry loop.
+
+    urllib3 handles common transient failures internally. This outer loop also
+    catches cases such as RemoteDisconnected, where the remote server closes
+    the connection without returning a response.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            response = session.get(
+                url,
+                headers=HEADERS,
+                timeout=(
+                    10,
+                    CONFIG.get("timeout_seconds", 30),
+                ),
+            )
+            response.raise_for_status()
+            response.encoding = response.apparent_encoding or "utf-8"
+            return response.text
+
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.HTTPError,
+        ) as exc:
+            last_error = exc
+
+            if attempt >= attempts:
+                break
+
+            wait_seconds = 5 * (2 ** (attempt - 1))
+            print(
+                f"通信失敗 {attempt}/{attempts}: {url} "
+                f"({type(exc).__name__})。"
+                f"{wait_seconds}秒後に再試行します。"
+            )
+            time.sleep(wait_seconds)
+
+    raise RuntimeError(
+        f"取得失敗（{attempts}回試行）: {url}"
+    ) from last_error
 
 
 LOGO_PARTNER_ID_RE = re.compile(
@@ -584,7 +652,7 @@ def calculate(text: str, condition: str) -> dict:
 
 def parse_detail(session: requests.Session, url: str) -> tuple[str, str]:
     try:
-        detail_html = get(session, url)
+        detail_html = get(session, url, attempts=3)
         soup = BeautifulSoup(detail_html, "lxml")
         return normalize(soup.get_text(" ", strip=True)), ""
     except Exception as exc:
@@ -599,7 +667,7 @@ def scrape() -> list[Offer]:
 
     for page in range(1, int(CONFIG.get("pages", 4)) + 1):
         search_url = with_page(CONFIG["search_url"], page)
-        search_html = get(session, search_url)
+        search_html = get(session, search_url, attempts=4)
         debug_dir = ROOT / "data" / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
         (debug_dir / f"search-page-{page}.html").write_text(search_html, encoding="utf-8")
@@ -1063,7 +1131,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.8</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.9</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1563,7 +1631,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.8";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.9";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
