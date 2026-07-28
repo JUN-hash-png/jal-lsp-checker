@@ -131,6 +131,7 @@ class Offer:
     previous_cost: int | None
     change_note: str
     checked_at: str
+    image_url: str
 
 
 def normalize(text: str) -> str:
@@ -194,6 +195,32 @@ def find_detail_url(block: Tag, base_url: str) -> str | None:
             return urljoin(base_url, match.group("path"))
 
     return None
+
+
+def find_image_url(block: Tag, base_url: str) -> str:
+    """Return the most likely merchant/card image URL from a result block."""
+    candidates: list[Tag] = [block]
+    parent = block.parent
+    for _ in range(2):
+        if not isinstance(parent, Tag):
+            break
+        candidates.append(parent)
+        parent = parent.parent
+
+    for scope in candidates:
+        for img in scope.find_all("img"):
+            raw = (
+                img.get("src")
+                or img.get("data-src")
+                or img.get("data-original")
+                or img.get("data-lazy")
+                or ""
+            )
+            raw = str(raw).strip()
+            if not raw or raw.startswith("data:"):
+                continue
+            return urljoin(base_url, raw)
+    return ""
 
 def result_blocks(soup: BeautifulSoup) -> list[Tag]:
     """
@@ -543,6 +570,7 @@ def scrape() -> list[Offer]:
         for block in blocks:
             block_text = normalize(block.get_text(" ", strip=True))
             service, condition = extract_service_and_condition(block)
+            image_url = find_image_url(block, search_url)
 
             detail_url = find_detail_url(block, search_url)
             detail_found = detail_url is not None
@@ -599,6 +627,7 @@ def scrape() -> list[Offer]:
                 previous_cost=None,
                 change_note="",
                 checked_at=checked_at,
+                image_url=image_url,
             )
 
             if detail_found:
@@ -775,6 +804,12 @@ def write_html(offers: list[Offer]) -> None:
             rank_html = f'<span class="rank">#{rank}</span>' if rank and rank <= 20 else ""
 
         link_label = html.escape(offer.service)
+        merchant_icon = (
+            f'<img class="merchant-icon" src="{html.escape(offer.image_url, quote=True)}" '
+            f'alt="" loading="lazy" referrerpolicy="no-referrer">'
+            if offer.image_url else
+            f'<span class="merchant-icon placeholder" aria-hidden="true">{html.escape(offer.service[:1] or "・")}</span>'
+        )
         service_html = (
             f'<a href="{html.escape(offer.detail_url)}" target="_blank" rel="noopener">{link_label}</a>'
             if offer.detail_found
@@ -829,7 +864,7 @@ def write_html(offers: list[Offer]) -> None:
             <button class="favorite-btn" type="button" title="お気に入り">☆</button>
             <button class="done-btn" type="button" title="取得済みにする">✓</button>
           </td>
-          <td class="service" data-label="サービス">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</td>
+          <td class="service" data-label="サービス"><div class="service-line">{merchant_icon}<div class="service-main">{rank_html}{service_html}<div class="tags">{''.join(tags)}</div>{condition_note_html}</div></div></td>
           <td data-label="マイル条件">{html.escape(offer.condition or '要確認')}</td>
           <td class="number strong" data-label="1LSP必要額">{fmt_yen(offer.spend_for_1_lsp)}</td>
           <td class="number" data-label="1000円でLSP">{lsp_per_1000_text}</td>
@@ -934,6 +969,10 @@ a {{ color:var(--accent); }}
 .tag.improved {{ background:#dff5e5; color:#176b2c; }}
 .rank {{ display:inline-block; min-width:32px; margin-right:6px; color:var(--sub); font-size:.78rem; }}
 .rank.medal {{ color:var(--text); font-weight:800; }}
+.service-line {{ display:flex; align-items:flex-start; gap:10px; }}
+.service-main {{ min-width:0; }}
+.merchant-icon {{ width:42px; height:42px; flex:0 0 42px; object-fit:contain; border-radius:8px; background:#fff; border:1px solid var(--line); }}
+.merchant-icon.placeholder {{ display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--sub); font-weight:800; font-size:1.05rem; }}
 .favorite-cell {{ width:42px; text-align:center; }}
 .favorite-btn, .done-btn {{ border:0; background:transparent; color:#999; cursor:pointer; line-height:1; padding:0; }}
 .favorite-btn {{ font-size:1.45rem; }}
@@ -979,7 +1018,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.1</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1114,9 +1153,20 @@ const backToTop = document.querySelector('#backToTop');
 const FAVORITES_KEY = 'jal-lsp-favorites-v2';
 const DONE_KEY = 'jal-lsp-done-v1';
 const TARGET_KEY = 'jal-lsp-target-v1';
-let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'));
-let doneOffers = new Set(JSON.parse(localStorage.getItem(DONE_KEY) || '[]'));
-targetLsp.value = localStorage.getItem(TARGET_KEY) || '';
+function loadStoredSet(key) {{
+  try {{
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    return new Set(Array.isArray(value) ? value.map(String) : []);
+  }} catch (error) {{
+    console.warn(`保存データを初期化しました: ${{key}}`, error);
+    localStorage.removeItem(key);
+    return new Set();
+  }}
+}}
+
+let favorites = loadStoredSet(FAVORITES_KEY);
+let doneOffers = loadStoredSet(DONE_KEY);
+if (targetLsp) targetLsp.value = localStorage.getItem(TARGET_KEY) || '';
 let activeCategory = '';
 const THEME_KEY = 'jal-lsp-theme-v1';
 let deferredInstallPrompt = null;
@@ -1148,13 +1198,17 @@ function syncFavoriteButtons() {{
     const key = row.dataset.favoriteKey;
     const button = row.querySelector('.favorite-btn');
     const active = favorites.has(key);
-    button.classList.toggle('active', active);
-    button.textContent = active ? '★' : '☆';
+    if (button) {{
+      button.classList.toggle('active', active);
+      button.textContent = active ? '★' : '☆';
+    }}
 
     const doneButton = row.querySelector('.done-btn');
     const done = doneOffers.has(key);
-    doneButton.classList.toggle('active', done);
-    doneButton.title = done ? '取得済みを解除' : '取得済みにする';
+    if (doneButton) {{
+      doneButton.classList.toggle('active', done);
+      doneButton.title = done ? '取得済みを解除' : '取得済みにする';
+    }}
     row.classList.toggle('done-row', done);
     row.dataset.done = done ? 'yes' : 'no';
   }});
@@ -1257,30 +1311,30 @@ function refreshPreservingScroll() {{
   requestAnimationFrame(() => window.scrollTo(x, y));
 }}
 
-rows.forEach(row => {{
-  const button = row.querySelector('.favorite-btn');
-  const doneButton = row.querySelector('.done-btn');
+tbody.addEventListener('click', event => {{
+  const button = event.target.closest('.favorite-btn, .done-btn');
+  if (!button) return;
 
-  button.addEventListener('click', event => {{
-    event.preventDefault();
-    const key = row.dataset.favoriteKey;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const row = button.closest('tr');
+  if (!row) return;
+  const key = row.dataset.favoriteKey;
+
+  if (button.classList.contains('favorite-btn')) {{
     if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
     saveFavorites();
-    syncFavoriteButtons();
-    refreshPreservingScroll();
-  }});
-
-  doneButton.addEventListener('click', event => {{
-    event.preventDefault();
-    const key = row.dataset.favoriteKey;
+  }} else {{
     if (doneOffers.has(key)) doneOffers.delete(key); else doneOffers.add(key);
     saveDone();
-    syncFavoriteButtons();
-    refreshPreservingScroll();
-  }});
+  }}
+
+  syncFavoriteButtons();
+  refreshPreservingScroll();
 }});
 
-exportFavorites.addEventListener('click', () => {{
+exportFavorites?.addEventListener('click', () => {{
   const payload = {{
     version: 2,
     exportedAt: new Date().toISOString(),
@@ -1297,7 +1351,7 @@ exportFavorites.addEventListener('click', () => {{
   URL.revokeObjectURL(url);
 }});
 
-exportFavoritesCsv.addEventListener('click', () => {{
+exportFavoritesCsv?.addEventListener('click', () => {{
   const rowsForCsv = rows.filter(row => favorites.has(row.dataset.favoriteKey));
   const header = ['サービス','マイル条件','1LSP必要額','1000円でLSP','終了日','取得済み'];
   const body = rowsForCsv.map(row => [
@@ -1319,7 +1373,7 @@ exportFavoritesCsv.addEventListener('click', () => {{
   URL.revokeObjectURL(url);
 }});
 
-importFavorites.addEventListener('change', async event => {{
+importFavorites?.addEventListener('change', async event => {{
   const file = event.target.files?.[0];
   if (!file) return;
   try {{
@@ -1341,7 +1395,7 @@ importFavorites.addEventListener('change', async event => {{
   }}
 }});
 
-clearFavorites.addEventListener('click', () => {{
+clearFavorites?.addEventListener('click', () => {{
   if (!confirm('お気に入りをすべて解除しますか？')) return;
   favorites.clear();
   saveFavorites();
@@ -1349,7 +1403,7 @@ clearFavorites.addEventListener('click', () => {{
   refresh();
 }});
 
-targetLsp.addEventListener('input', () => {{
+targetLsp?.addEventListener('input', () => {{
   localStorage.setItem(TARGET_KEY, targetLsp.value);
   updateFavoriteSummary();
 }});
@@ -1378,13 +1432,13 @@ categoryButtons.forEach(button => {{
 q.addEventListener('input', refresh);
 sort.addEventListener('change', refresh);
 
-themeToggle.addEventListener('click', () => {{
+themeToggle?.addEventListener('click', () => {{
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
 }});
 
-resetView.addEventListener('click', () => {{
+resetView?.addEventListener('click', () => {{
   q.value = '';
   filter.value = 'all';
   sort.value = 'cost';
@@ -1398,7 +1452,7 @@ window.addEventListener('scroll', () => {{
   backToTop.classList.toggle('visible', window.scrollY > 600);
 }}, {{passive:true}});
 
-backToTop.addEventListener('click', () => {{
+backToTop?.addEventListener('click', () => {{
   window.scrollTo({{top:0, behavior:'smooth'}});
 }});
 
@@ -1408,7 +1462,7 @@ window.addEventListener('beforeinstallprompt', event => {{
   installApp.hidden = false;
 }});
 
-installApp.addEventListener('click', async () => {{
+installApp?.addEventListener('click', async () => {{
   if (!deferredInstallPrompt) return;
   deferredInstallPrompt.prompt();
   await deferredInstallPrompt.userChoice;
@@ -1464,7 +1518,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.1";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
@@ -1483,14 +1537,31 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+
+  const requestUrl = new URL(event.request.url);
+  const isPage = event.request.mode === "navigate" || requestUrl.pathname.endsWith("/index.html");
+
+  if (isPage) {
+    event.respondWith(
+      fetch(event.request, {cache: "no-store"})
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put("./index.html", copy));
+          return response;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
+    caches.match(event.request).then(hit =>
+      hit || fetch(event.request).then(response => {
         const copy = response.clone();
         caches.open(CACHE).then(cache => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then(hit => hit || caches.match("./index.html")))
+    )
   );
 });'''
     (docs_dir / "sw.js").write_text(service_worker, encoding="utf-8")
