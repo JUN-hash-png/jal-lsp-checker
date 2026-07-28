@@ -879,6 +879,7 @@ def write_html(offers: list[Offer]) -> None:
 <head>
 <meta charset="utf-8">
 <meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1018,7 +1019,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.1</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.2</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1363,7 +1364,7 @@ exportFavoritesCsv?.addEventListener('click', () => {{
     doneOffers.has(row.dataset.favoriteKey) ? '済' : '未',
   ]);
   const escapeCsv = value => `"${{String(value).replaceAll('"', '""')}}"`;
-  const csv = '\ufeff' + [header, ...body].map(cols => cols.map(escapeCsv).join(',')).join('\r\n');
+  const csv = '\ufeff' + [header, ...body].map(cols => cols.map(escapeCsv).join(',')).join('\\r\\n');
   const blob = new Blob([csv], {{type: 'text/csv;charset=utf-8'}});
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -1518,7 +1519,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.1";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
