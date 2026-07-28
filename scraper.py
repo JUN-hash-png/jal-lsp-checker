@@ -864,11 +864,21 @@ def write_html(offers: list[Offer]) -> None:
             if offer.image_url else
             f'<span class="merchant-icon placeholder" aria-hidden="true">{html.escape(offer.service[:1] or "・")}</span>'
         )
-        service_html = (
-            f'<a href="{html.escape(offer.detail_url)}" target="_blank" rel="noopener">{link_label}</a>'
-            if offer.detail_found
-            else f'<span>{link_label}</span>'
-        )
+        if offer.detail_found:
+            service_html = (
+                f'<a href="{html.escape(offer.detail_url, quote=True)}" '
+                f'target="_blank" rel="noopener">{link_label}</a>'
+            )
+        else:
+            # Some JAL search results do not expose an individual detail-page
+            # URL. Keep the service name clickable and return the user to the
+            # exact JAL result page on which the offer was found.
+            service_html = (
+                f'<a class="search-result-link" '
+                f'href="{html.escape(offer.detail_url, quote=True)}" '
+                f'target="_blank" rel="noopener" '
+                f'title="JALの検索結果ページを開く">{link_label}</a>'
+            )
 
         favorite_key = html.escape(identity, quote=True)
         lsp_per_1000 = (
@@ -1026,6 +1036,7 @@ a {{ color:var(--accent); }}
 .rank.medal {{ color:var(--text); font-weight:800; }}
 .service-line {{ display:flex; align-items:flex-start; gap:10px; }}
 .service-main {{ min-width:0; }}
+.search-result-link {{ text-decoration-style:dotted; }}
 .merchant-icon {{ width:42px; height:42px; flex:0 0 42px; object-fit:contain; border-radius:8px; background:#fff; border:1px solid var(--line); }}
 .merchant-icon.placeholder {{ display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--sub); font-weight:800; font-size:1.05rem; }}
 .favorite-cell {{ width:42px; text-align:center; }}
@@ -1057,7 +1068,8 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
   table {{ min-width:0; display:block; }}
   thead {{ display:none; }}
   tbody {{ display:grid; gap:10px; }}
-  tr {{ display:grid; grid-template-columns:1fr 1fr; background:var(--card); border:1px solid var(--line); border-radius:13px; padding:10px; }}
+  tr {{ display:grid; grid-template-columns:1fr 1fr; background:var(--card); border:1px solid var(--line); border-radius:13px; padding:10px; position:relative; }}
+  tr[hidden] {{ display:none !important; }}
   td {{ display:flex; justify-content:space-between; gap:12px; border-bottom:1px dashed var(--line); padding:8px 4px; text-align:right; }}
   td::before {{ content:attr(data-label); color:var(--sub); font-size:.76rem; font-weight:600; text-align:left; }}
   td.service {{ grid-column:1 / -1; display:block; text-align:left; border-bottom:1px solid var(--line); padding:3px 4px 10px; }}
@@ -1073,7 +1085,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.3</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.5</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1573,7 +1585,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.3";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.5";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
