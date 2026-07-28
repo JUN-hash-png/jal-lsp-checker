@@ -160,39 +160,93 @@ def get(session: requests.Session, url: str) -> str:
 
 def find_detail_url(block: Tag, base_url: str) -> str | None:
     """
-    Find a JAL partner detail URL from href/data-* attributes, onclick strings,
-    or nearby wrapper elements. Normal cards do not always expose the shop name
-    as a plain anchor.
+    Find the destination URL belonging to one result card.
+
+    JAL uses several link shapes, not only /jmb/partner/feature/.
+    Prefer links inside the result block and image/name anchors, then inspect
+    only the nearest wrappers. Avoid page navigation and generic search links.
     """
-    candidates: list[Tag] = [block]
-    candidates.extend(block.find_all(True))
+    scopes: list[Tag] = [block]
 
     parent = block.parent
     for _ in range(3):
         if not isinstance(parent, Tag):
             break
-        candidates.append(parent)
+        scopes.append(parent)
         parent = parent.parent
 
+    rejected_parts = (
+        "#",
+        "javascript:",
+        "/jmb/index.html",
+        "/jmb/partner/index",
+        "/jmb/partner/search",
+        "?pn=",
+    )
+
+    def acceptable(raw_href: str) -> str | None:
+        href = raw_href.strip()
+        if not href or href.lower().startswith(("javascript:", "mailto:", "tel:")):
+            return None
+
+        absolute = urljoin(base_url, href)
+        parsed = urlsplit(absolute)
+
+        if any(part in absolute for part in rejected_parts):
+            return None
+        if parsed.scheme not in ("http", "https"):
+            return None
+
+        if any(token in parsed.path for token in (
+            "/jmb/partner/",
+            "/jmb/mileage/",
+            "/jmb/campaign/",
+        )):
+            return absolute
+
+        if parsed.netloc and parsed.netloc != urlsplit(base_url).netloc:
+            return absolute
+
+        return None
+
+    for scope_index, scope in enumerate(scopes):
+        anchors = []
+        if scope.name == "a":
+            anchors.append(scope)
+        anchors.extend(scope.find_all("a", href=True))
+
+        if scope_index > 0:
+            local_anchors = []
+            for anchor in anchors:
+                if block in anchor.descendants or anchor is block.parent:
+                    local_anchors.append(anchor)
+            if local_anchors:
+                anchors = local_anchors
+
+        for anchor in anchors:
+            candidate = acceptable(str(anchor.get("href", "")))
+            if candidate:
+                return candidate
+
+    candidates: list[Tag] = [block]
+    candidates.extend(block.find_all(True))
     for tag in candidates:
         for attr_value in tag.attrs.values():
             values = attr_value if isinstance(attr_value, list) else [attr_value]
             for value in values:
                 raw = str(value)
+
                 match = FEATURE_URL_RE.search(raw)
                 if match:
                     return urljoin(base_url, match.group("path"))
 
-                if tag.name == "a" and tag.get("href"):
-                    href = str(tag.get("href")).strip()
-                    absolute = urljoin(base_url, href)
-                    if "/jmb/partner/feature/" in absolute:
-                        return absolute
-
-        # Catch URLs embedded in inline scripts or unusual attributes.
-        match = FEATURE_URL_RE.search(str(tag))
-        if match:
-            return urljoin(base_url, match.group("path"))
+                for found in re.findall(
+                    r'(?:https?://[^\\s"\'<>]+|/[A-Za-z0-9_./?=&%+\\-]+)',
+                    raw,
+                ):
+                    candidate = acceptable(found)
+                    if candidate:
+                        return candidate
 
     return None
 
@@ -1019,7 +1073,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.2</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.3</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1519,7 +1573,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.2";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.3";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
