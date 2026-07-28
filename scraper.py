@@ -160,86 +160,101 @@ def get(session: requests.Session, url: str) -> str:
 
 def find_detail_url(block: Tag, base_url: str) -> str | None:
     """
-    Find the destination URL belonging to one result card.
+    Return only a URL that can be tied to this exact result card.
 
-    JAL uses several link shapes, not only /jmb/partner/feature/.
-    Prefer links inside the result block and image/name anchors, then inspect
-    only the nearest wrappers. Avoid page navigation and generic search links.
+    Never inspect parent wrappers: one parent can contain several offers, which
+    previously caused Norton to inherit Yamada Bee Farm's URL.
     """
-    scopes: list[Tag] = [block]
-
-    parent = block.parent
-    for _ in range(3):
-        if not isinstance(parent, Tag):
-            break
-        scopes.append(parent)
-        parent = parent.parent
-
-    rejected_parts = (
-        "#",
-        "javascript:",
-        "/jmb/index.html",
-        "/jmb/partner/index",
-        "/jmb/partner/search",
-        "?pn=",
-    )
+    base_host = urlsplit(base_url).netloc
 
     def acceptable(raw_href: str) -> str | None:
-        href = raw_href.strip()
-        if not href or href.lower().startswith(("javascript:", "mailto:", "tel:")):
+        href = str(raw_href or "").strip()
+        if not href or href.lower().startswith(
+            ("javascript:", "mailto:", "tel:", "#")
+        ):
             return None
 
         absolute = urljoin(base_url, href)
         parsed = urlsplit(absolute)
 
-        if any(part in absolute for part in rejected_parts):
-            return None
         if parsed.scheme not in ("http", "https"):
             return None
 
-        if any(token in parsed.path for token in (
-            "/jmb/partner/",
-            "/jmb/mileage/",
-            "/jmb/campaign/",
-        )):
-            return absolute
+        rejected = (
+            "/jmb/index.html",
+            "/jmb/partner/index",
+            "/jmb/partner/search",
+            "/mileuplist/",
+        )
+        if any(part in parsed.path for part in rejected):
+            return None
+        if "pn=" in parsed.query:
+            return None
 
-        if parsed.netloc and parsed.netloc != urlsplit(base_url).netloc:
+        # JAL shop/detail and campaign pages, or a genuine external shop URL.
+        if (
+            parsed.path.startswith("/shop/")
+            or "/jmb/partner/" in parsed.path
+            or "/jmb/mileage/" in parsed.path
+            or "/jmb/campaign/" in parsed.path
+            or parsed.netloc != base_host
+        ):
             return absolute
 
         return None
 
-    for scope_index, scope in enumerate(scopes):
-        anchors = []
-        if scope.name == "a":
-            anchors.append(scope)
-        anchors.extend(scope.find_all("a", href=True))
-
-        if scope_index > 0:
-            local_anchors = []
-            for anchor in anchors:
-                if block in anchor.descendants or anchor is block.parent:
-                    local_anchors.append(anchor)
-            if local_anchors:
-                anchors = local_anchors
-
-        for anchor in anchors:
-            candidate = acceptable(str(anchor.get("href", "")))
+    # Strongest signal: the card image itself is wrapped by a link.
+    for img in block.find_all("img"):
+        anchor = img.find_parent("a", href=True)
+        if isinstance(anchor, Tag) and (anchor is block or anchor in block.descendants):
+            candidate = acceptable(anchor.get("href", ""))
             if candidate:
                 return candidate
 
-    candidates: list[Tag] = [block]
-    candidates.extend(block.find_all(True))
-    for tag in candidates:
-        for attr_value in tag.attrs.values():
+    # Next: an anchor wholly contained in this exact card. Score shop/detail
+    # links above generic campaign links.
+    scored: list[tuple[int, str]] = []
+    anchors: list[Tag] = []
+    if block.name == "a" and block.get("href"):
+        anchors.append(block)
+    anchors.extend(block.find_all("a", href=True))
+
+    for anchor in anchors:
+        candidate = acceptable(anchor.get("href", ""))
+        if not candidate:
+            continue
+
+        parsed = urlsplit(candidate)
+        anchor_text = normalize(anchor.get_text(" ", strip=True))
+        score = 0
+        if parsed.path.startswith("/shop/"):
+            score += 100
+        if "tp=" in parsed.query:
+            score += 60
+        if "詳しく" in anchor_text:
+            score += 30
+        if anchor.find("img"):
+            score += 20
+        if "/jmb/partner/feature/" in parsed.path:
+            score += 15
+        if parsed.netloc != base_host:
+            score += 10
+        scored.append((score, candidate))
+
+    if scored:
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return scored[0][1]
+
+    # Finally inspect data attributes only inside this card.
+    for tag in [block, *block.find_all(True)]:
+        for attr_name, attr_value in tag.attrs.items():
+            if attr_name not in (
+                "data-href", "data-url", "data-link", "onclick"
+            ):
+                continue
             values = attr_value if isinstance(attr_value, list) else [attr_value]
             for value in values:
                 raw = str(value)
-
-                match = FEATURE_URL_RE.search(raw)
-                if match:
-                    return urljoin(base_url, match.group("path"))
-
                 for found in re.findall(
                     r'(?:https?://[^\\s"\'<>]+|/[A-Za-z0-9_./?=&%+\\-]+)',
                     raw,
@@ -1085,7 +1100,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.5</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.6</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1585,7 +1600,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.5";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.6";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
