@@ -13,8 +13,6 @@ from typing import Iterable
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup, Tag
 
 ROOT = Path(__file__).resolve().parent
@@ -150,26 +148,23 @@ def with_page(url: str, page: int) -> str:
 
 
 def build_session() -> requests.Session:
-    """Create an HTTP session that retries temporary server/network failures."""
-    session = build_session()
-    retry_policy = Retry(
-        total=4,
-        connect=4,
-        read=4,
-        status=4,
-        backoff_factor=1.5,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset({"GET"}),
-        raise_on_status=False,
-        respect_retry_after_header=True,
-    )
-    adapter = HTTPAdapter(
-        max_retries=retry_policy,
-        pool_connections=4,
-        pool_maxsize=4,
-    )
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
+    """Create a browser-like session. Retries are handled only by get()."""
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/150.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,image/apng,*/*;q=0.8"
+        ),
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Connection": "keep-alive",
+    })
     return session
 
 
@@ -177,31 +172,22 @@ def get(
     session: requests.Session,
     url: str,
     *,
-    attempts: int = 3,
+    attempts: int = 2,
+    connect_timeout: int = 6,
+    read_timeout: int = 18,
 ) -> str:
-    """
-    Fetch a page with an additional retry loop.
-
-    urllib3 handles common transient failures internally. This outer loop also
-    catches cases such as RemoteDisconnected, where the remote server closes
-    the connection without returning a response.
-    """
+    """Fetch one page with a single bounded retry layer."""
     last_error: Exception | None = None
 
     for attempt in range(1, attempts + 1):
         try:
             response = session.get(
                 url,
-                headers=HEADERS,
-                timeout=(
-                    10,
-                    CONFIG.get("timeout_seconds", 30),
-                ),
+                timeout=(connect_timeout, read_timeout),
             )
             response.raise_for_status()
             response.encoding = response.apparent_encoding or "utf-8"
             return response.text
-
         except (
             requests.exceptions.ConnectionError,
             requests.exceptions.Timeout,
@@ -209,17 +195,13 @@ def get(
             requests.exceptions.HTTPError,
         ) as exc:
             last_error = exc
-
             if attempt >= attempts:
                 break
-
-            wait_seconds = 5 * (2 ** (attempt - 1))
             print(
                 f"通信失敗 {attempt}/{attempts}: {url} "
-                f"({type(exc).__name__})。"
-                f"{wait_seconds}秒後に再試行します。"
+                f"({type(exc).__name__})。3秒後に再試行します。"
             )
-            time.sleep(wait_seconds)
+            time.sleep(3)
 
     raise RuntimeError(
         f"取得失敗（{attempts}回試行）: {url}"
@@ -652,7 +634,12 @@ def calculate(text: str, condition: str) -> dict:
 
 def parse_detail(session: requests.Session, url: str) -> tuple[str, str]:
     try:
-        detail_html = get(session, url, attempts=3)
+        detail_html = get(
+            session, url,
+            attempts=2,
+            connect_timeout=5,
+            read_timeout=12,
+        )
         soup = BeautifulSoup(detail_html, "lxml")
         return normalize(soup.get_text(" ", strip=True)), ""
     except Exception as exc:
@@ -666,8 +653,22 @@ def scrape() -> list[Offer]:
     offers_by_key: dict[tuple[str, str], Offer] = {}
 
     for page in range(1, int(CONFIG.get("pages", 4)) + 1):
+        if time.monotonic() - started_at > max_runtime_seconds:
+            print("警告: 実行時間が7分を超えたため残りを打ち切ります。")
+            break
         search_url = with_page(CONFIG["search_url"], page)
-        search_html = get(session, search_url, attempts=4)
+        try:
+            search_html = get(
+                session, search_url,
+                attempts=3,
+                connect_timeout=6,
+                read_timeout=18,
+            )
+        except RuntimeError as exc:
+            if page == 1:
+                raise
+            print(f"警告: page {page} をスキップします: {exc}")
+            continue
         debug_dir = ROOT / "data" / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
         (debug_dir / f"search-page-{page}.html").write_text(search_html, encoding="utf-8")
@@ -1131,7 +1132,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.9</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.10</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1631,7 +1632,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.9";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.10";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
