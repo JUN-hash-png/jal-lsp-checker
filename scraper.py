@@ -158,157 +158,109 @@ def get(session: requests.Session, url: str) -> str:
     return response.text
 
 
+LOGO_PARTNER_ID_RE = re.compile(
+    r"/emile/logo/0*(?P<partner_id>\d+)_c\.(?:jpe?g|png|gif)(?:[?#].*)?$",
+    re.I,
+)
+
+
 def find_detail_url(block: Tag, base_url: str, service: str) -> str | None:
     """
-    Find the URL for this exact merchant.
+    Return the detail URL for this exact result card.
 
-    The LSP marker itself is smaller than the whole result card, so the merchant
-    link can live in a parent element. Parent elements may also contain several
-    merchants, therefore a link is accepted only when its text/image metadata
-    matches the current service name.
+    JAL's result cards do not always expose a clickable <a>. The stable merchant
+    identifier is embedded in the card logo filename, for example:
+
+        /emile/logo/010672_c.jpg -> /jmb/partner/feature/10672/
+        /emile/logo/015382_c.jpg -> /jmb/partner/feature/15382/
+
+    This avoids borrowing a neighbouring card's link.
     """
-    base_host = urlsplit(base_url).netloc
+    # 1. Strongest and card-local signal: merchant ID in the logo filename.
+    for img in block.find_all("img"):
+        for attr in ("src", "data-src", "data-original", "data-lazy"):
+            raw = str(img.get(attr) or "").strip()
+            if not raw:
+                continue
+            absolute_image = urljoin(base_url, raw)
+            match = LOGO_PARTNER_ID_RE.search(urlsplit(absolute_image).path)
+            if match:
+                partner_id = int(match.group("partner_id"))
+                return urljoin(
+                    base_url,
+                    f"/jmb/partner/feature/{partner_id}/",
+                )
 
-    def compact(value: str) -> str:
-        return re.sub(r"[\s　・･\-‐‑–—―_/（）()【】\[\]「」『』]", "", normalize(value)).lower()
+    # 2. Some special cards contain a direct detail anchor inside the exact card.
+    # Never inspect parent/sibling wrappers.
+    candidates: list[str] = []
+    anchors: list[Tag] = []
+    if block.name == "a" and block.get("href"):
+        anchors.append(block)
+    anchors.extend(block.find_all("a", href=True))
 
-    service_key = compact(service)
-    # Useful shorter tokens for names with suffixes such as "公式オンラインショップ".
-    ignored = (
-        "公式オンラインショップ", "オンラインショップ", "公式通販サイト",
-        "公式通販", "商品購入", "ストア", "ショップ",
-    )
-    short_service = service
-    for suffix in ignored:
-        short_service = short_service.replace(suffix, "")
-    short_key = compact(short_service)
-
-    def matches_service(anchor: Tag) -> bool:
-        pieces: list[str] = [anchor.get_text(" ", strip=True)]
-        for attr in ("title", "aria-label"):
-            if anchor.get(attr):
-                pieces.append(str(anchor.get(attr)))
-        for img in anchor.find_all("img"):
-            for attr in ("alt", "title"):
-                if img.get(attr):
-                    pieces.append(str(img.get(attr)))
-
-        haystack = compact(" ".join(pieces))
-        if not haystack:
-            return False
-        if service_key and service_key in haystack:
-            return True
-        return bool(short_key and len(short_key) >= 4 and short_key in haystack)
-
-    def acceptable(raw_href: str) -> str | None:
-        href = str(raw_href or "").strip()
+    for anchor in anchors:
+        href = str(anchor.get("href") or "").strip()
         if not href or href.lower().startswith(
             ("javascript:", "mailto:", "tel:", "#")
         ):
-            return None
+            continue
 
         absolute = urljoin(base_url, href)
         parsed = urlsplit(absolute)
         if parsed.scheme not in ("http", "https"):
-            return None
-
-        # Never use list, navigation, or pagination pages as a merchant link.
-        rejected_paths = (
-            "/mileuplist/",
-            "/jmb/partner/search",
-            "/jmb/partner/index",
-            "/jmb/index.html",
-        )
-        if any(part in parsed.path for part in rejected_paths):
-            return None
-        if "pn=" in parsed.query:
-            return None
+            continue
+        if "/search_result/" in parsed.path or "pn=" in parsed.query:
+            continue
 
         if (
-            parsed.path.startswith("/shop/")
-            or "/jmb/partner/" in parsed.path
-            or "/jmb/mileage/" in parsed.path
-            or "/jmb/campaign/" in parsed.path
-            or parsed.netloc != base_host
+            "/jmb/partner/feature/" in parsed.path
+            or parsed.path.startswith("/shop/")
         ):
-            return absolute
-        return None
-
-    # Inspect the marker and only a few nearest wrappers. A candidate must
-    # explicitly identify this merchant through link text, title, or image alt.
-    scopes: list[Tag] = [block]
-    parent = block.parent
-    for _ in range(5):
-        if not isinstance(parent, Tag):
-            break
-        scopes.append(parent)
-        parent = parent.parent
-
-    candidates: list[tuple[int, int, str]] = []
-    seen: set[str] = set()
-
-    for depth, scope in enumerate(scopes):
-        anchors: list[Tag] = []
-        if scope.name == "a" and scope.get("href"):
-            anchors.append(scope)
-        anchors.extend(scope.find_all("a", href=True))
-
-        for anchor in anchors:
-            if not matches_service(anchor):
-                continue
-
-            candidate = acceptable(anchor.get("href", ""))
-            if not candidate or candidate in seen:
-                continue
-            seen.add(candidate)
-
-            parsed = urlsplit(candidate)
-            score = 0
-            if parsed.path.startswith("/shop/"):
-                score += 100
-            if "tp=" in parsed.query:
-                score += 80
-            if anchor.find("img"):
-                score += 30
-            if "/jmb/partner/feature/" in parsed.path:
-                score += 20
-            if parsed.netloc != base_host:
-                score += 10
-
-            # Prefer the closest ancestor when otherwise equal.
-            candidates.append((score, -depth, candidate))
+            candidates.append(absolute)
 
     if candidates:
-        candidates.sort(reverse=True)
-        return candidates[0][2]
+        # Prefer a JAL detail page over a shop redirect.
+        candidates.sort(
+            key=lambda url: "/jmb/partner/feature/" not in url
+        )
+        return candidates[0]
 
     return None
 
 
 def find_image_url(block: Tag, base_url: str) -> str:
-    """Return the most likely merchant/card image URL from a result block."""
-    candidates: list[Tag] = [block]
-    parent = block.parent
-    for _ in range(2):
-        if not isinstance(parent, Tag):
-            break
-        candidates.append(parent)
-        parent = parent.parent
+    """Return the merchant logo belonging to this exact result card."""
+    for img in block.find_all("img"):
+        raw = (
+            img.get("src")
+            or img.get("data-src")
+            or img.get("data-original")
+            or img.get("data-lazy")
+            or ""
+        )
+        raw = str(raw).strip()
+        if not raw or raw.startswith("data:"):
+            continue
 
-    for scope in candidates:
-        for img in scope.find_all("img"):
-            raw = (
-                img.get("src")
-                or img.get("data-src")
-                or img.get("data-original")
-                or img.get("data-lazy")
-                or ""
-            )
-            raw = str(raw).strip()
-            if not raw or raw.startswith("data:"):
-                continue
+        absolute = urljoin(base_url, raw)
+        if LOGO_PARTNER_ID_RE.search(urlsplit(absolute).path):
+            return absolute
+
+    # Fallback for a special card whose image does not use the normal logo path.
+    for img in block.find_all("img"):
+        raw = (
+            img.get("src")
+            or img.get("data-src")
+            or img.get("data-original")
+            or img.get("data-lazy")
+            or ""
+        )
+        raw = str(raw).strip()
+        if raw and not raw.startswith("data:"):
             return urljoin(base_url, raw)
     return ""
+
 
 def result_blocks(soup: BeautifulSoup) -> list[Tag]:
     """
@@ -898,7 +850,7 @@ def write_html(offers: list[Offer]) -> None:
             if offer.image_url else
             f'<span class="merchant-icon placeholder" aria-hidden="true">{html.escape(offer.service[:1] or "・")}</span>'
         )
-        if offer.detail_found:
+        if offer.detail_url and offer.detail_found:
             service_html = (
                 f'<a href="{html.escape(offer.detail_url, quote=True)}" '
                 f'target="_blank" rel="noopener">{link_label}</a>'
@@ -1111,7 +1063,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.7</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.8</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1611,7 +1563,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.7";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.8";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
