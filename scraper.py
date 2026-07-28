@@ -647,7 +647,9 @@ def parse_detail(session: requests.Session, url: str) -> tuple[str, str]:
 
 
 def scrape() -> list[Offer]:
-    session = requests.Session()
+    session = build_session()
+    started_at = time.monotonic()
+    max_runtime_seconds = 420
     checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
     previous = load_previous_offers()
     offers_by_key: dict[tuple[str, str], Offer] = {}
@@ -1132,7 +1134,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.10</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.11</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1632,7 +1634,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.10";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.11";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
