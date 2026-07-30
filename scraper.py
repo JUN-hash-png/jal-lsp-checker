@@ -221,8 +221,8 @@ def find_detail_url(block: Tag, base_url: str, service: str) -> str | None:
     JAL's result cards do not always expose a clickable <a>. The stable merchant
     identifier is embedded in the card logo filename, for example:
 
-        /emile/logo/010672_c.jpg -> /jmb/partner/feature/10672/
-        /emile/logo/015382_c.jpg -> /jmb/partner/feature/15382/
+        /emile/logo/010672_c.jpg -> /shop/?tp=10672
+        /emile/logo/015382_c.jpg -> /shop/?tp=15382
 
     This avoids borrowing a neighbouring card's link.
     """
@@ -238,7 +238,7 @@ def find_detail_url(block: Tag, base_url: str, service: str) -> str | None:
                 partner_id = int(match.group("partner_id"))
                 return urljoin(
                     base_url,
-                    f"/jmb/partner/feature/{partner_id}/",
+                    f"/shop/?tp={partner_id}",
                 )
 
     # 2. Some special cards contain a direct detail anchor inside the exact card.
@@ -270,9 +270,12 @@ def find_detail_url(block: Tag, base_url: str, service: str) -> str | None:
             candidates.append(absolute)
 
     if candidates:
-        # Prefer a JAL detail page over a shop redirect.
+        # Prefer the current JAL merchant page format: /shop/?tp=...
         candidates.sort(
-            key=lambda url: "/jmb/partner/feature/" not in url
+            key=lambda url: not (
+                urlsplit(url).path.startswith("/shop/")
+                and "tp=" in urlsplit(url).query
+            )
         )
         return candidates[0]
 
@@ -1134,7 +1137,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.11</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.12</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1634,7 +1637,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.11";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.12";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
