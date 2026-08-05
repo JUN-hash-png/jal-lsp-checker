@@ -8,6 +8,7 @@ import re
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
@@ -653,7 +654,7 @@ def scrape() -> list[Offer]:
     session = build_session()
     started_at = time.monotonic()
     max_runtime_seconds = 420
-    checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    checked_at = datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M JST")
     previous = load_previous_offers()
     offers_by_key: dict[tuple[str, str], Offer] = {}
 
@@ -1137,7 +1138,7 @@ footer {{ max-width:1400px; margin:auto; padding:0 12px 30px; color:var(--sub); 
 <body>
 <header>
   <div class="title-row">
-    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.12</small></h1>
+    <h1>JAL LSP Checker <small style="font-size:.55em;color:var(--sub)">Ver.2.0.13</small></h1>
     <div class="header-actions">
       <button type="button" id="themeToggle" title="表示テーマを切り替える">🌙</button>
       <button type="button" id="installApp" hidden>ホーム画面に追加</button>
@@ -1637,7 +1638,7 @@ refresh();
 </svg>'''
     (docs_dir / "icon.svg").write_text(icon_svg, encoding="utf-8")
 
-    service_worker = '''const CACHE = "jal-lsp-v2.0.12";
+    service_worker = '''const CACHE = "jal-lsp-v2.0.13";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", event => {
